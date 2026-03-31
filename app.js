@@ -500,8 +500,10 @@ function printDates(dates) {
 function printScreenings(screenings, movies) {
   console.log("\n[상영 정보]");
   screenings.forEach((s, index) => {
+    const totalSeats = s.rows * s.cols;
+
     console.log(
-      `${index + 1}. ${getMovieTitle(s.movieId, movies)} | ${s.theater}관 | ${s.date} | ${s.time} | ${s.rows}x${s.cols}`
+      `${index + 1}. ${getMovieTitle(s.movieId, movies)} | ${s.theater}관 | ${s.date} | ${s.time} | 총 ${totalSeats}석`
     );
   });
 }
