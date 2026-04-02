@@ -29,7 +29,6 @@ function ensureFileExists(fileName) {
 }
 
 function readRawLines(fileName) {
-  ensureFileExists(fileName);
   const content = fs.readFileSync(fileName, "utf8");
   if (!content.trim()) return [];
   return content
@@ -56,9 +55,18 @@ function safeExit() {
   process.exit(0);
 }
 
+/* =========================
+   입력 정규화
+========================= */
+
+// 모든 입력 공백 제거
+function normalizeInput(input) {
+  return input.replace(/\s+/g, "");
+}
+
 function askRaw(question) {
   return new Promise((resolve) => {
-    rl.question(question, (answer) => resolve(answer.trim()));
+    rl.question(question, (answer) => resolve(normalizeInput(answer)));
   });
 }
 
@@ -117,26 +125,40 @@ function validateMovieTitleSyntax(title) {
 
 // 영화 코드: M001 같은 형식
 function validateMovieCodeSyntax(code) {
-  return /^[A-Z0-9]{4}$/.test(code);
+  return /^M[0-9]{3}$/.test(code);
 }
 
 // 상영 코드: S001 같은 형식
 function validateScreeningCodeSyntax(code) {
-  return /^[A-Z0-9]{4}$/.test(code);
+  return /^S[0-9]{3}$/.test(code);
 }
 
-// 예약 코드: 0001 같은 4자리 숫자
+// 예약 코드: R001 같은 형식
 function validateReservationCodeSyntax(code) {
-  return /^[0-9]{4}$/.test(code);
+  return /^R[0-9]{3}$/.test(code);
 }
 
-// 상영관: 1~99 (파일에는 숫자만 저장)
+// 상영관: 1~99
 function validateTheaterSyntax(theater) {
   return /^[1-9][0-9]?$/.test(theater);
 }
 
+// 날짜 내부 저장 형식: YYYY-MM-DD
 function validateDateSyntax(date) {
-  return /^20[0-9]{2}-[0-9]{2}-[0-9]{2}$/.test(date);
+  return /^[0-9]{4}-[0-9]{2}-[0-9]{2}$/.test(date);
+}
+
+// 날짜 입력 문법:
+// 숫자는 정확히 8개여야 하고, '-'는 앞/중간/뒤 어디에나 0개 이상 올 수 있음
+// 예: -202-4-1-1-0-8, 2000-03-11-, 20240311
+function validateFlexibleDateSyntax(input) {
+  return /^-*(\d-*){8}$/.test(input);
+}
+
+// 입력값에서 '-'를 모두 제거한 뒤 YYYY-MM-DD 형식으로 정규화
+function normalizeDateInput(input) {
+  const digits = input.replace(/-/g, "");
+  return `${digits.slice(0, 4)}-${digits.slice(4, 6)}-${digits.slice(6, 8)}`;
 }
 
 function validateDateSemantic(date) {
@@ -147,15 +169,31 @@ function validateDateSemantic(date) {
   const month = Number(monthStr);
   const day = Number(dayStr);
 
+  // YYYY는 2000년 이상만 허용
+  if (year < 2000) return false;
+
+  // MM은 1~12
   if (month < 1 || month > 12) return false;
 
+  // DD는 해당 연월에 실제 존재하는 날짜여야 함
   const lastDay = new Date(year, month, 0).getDate();
   return day >= 1 && day <= lastDay;
 }
 
-// 상영 시간: 반드시 "HH:MM - HH:MM"
+// 상영 시간: "HH:MM-HH:MM" 또는 "HH:MM - HH:MM" 둘 다 허용
 function validateTimeRangeSyntax(time) {
-  return /^([0-1][0-9]|2[0-3]):([0-5][0-9])\s-\s([0-1][0-9]|2[0-3]):([0-5][0-9])$/.test(time);
+  return /^([0-1][0-9]|2[0-3]):([0-5][0-9])\s*-\s*([0-1][0-9]|2[0-3]):([0-5][0-9])$/.test(time);
+}
+
+function normalizeTimeRange(time) {
+  const match = time.match(
+    /^([0-1][0-9]|2[0-3]):([0-5][0-9])\s*-\s*([0-1][0-9]|2[0-3]):([0-5][0-9])$/
+  );
+  if (!match) return time;
+
+  const start = `${match[1]}:${match[2]}`;
+  const end = `${match[3]}:${match[4]}`;
+  return `${start} - ${end}`;
 }
 
 function timeToMinutes(hhmm) {
@@ -165,7 +203,9 @@ function timeToMinutes(hhmm) {
 
 function parseTimeRange(time) {
   if (!validateTimeRangeSyntax(time)) return null;
-  const [startStr, endStr] = time.split(" - ");
+
+  const normalized = normalizeTimeRange(time);
+  const [startStr, endStr] = normalized.split(" - ");
   const start = timeToMinutes(startStr);
   const end = timeToMinutes(endStr);
   return { start, end };
@@ -190,20 +230,29 @@ function validateSeatGridSemantic(rows, cols) {
 }
 
 function validatePhoneSyntax(phone) {
+  // 숫자와 - 만 허용
   if (!/^[0-9-]+$/.test(phone)) return false;
+
+  // 마지막 문자는 숫자여야 함
   if (!/[0-9]$/.test(phone)) return false;
 
+  // - 제거 후 순수 숫자 추출
   const digits = phone.replace(/-/g, "");
+
+  // 숫자 최소 6개 이상
   if (digits.length < 6) return false;
 
+  // 010 시작이면 총 숫자 11개
   if (digits.startsWith("010")) {
     return digits.length === 11;
   }
 
-  if (digits.startsWith("01") && digits[2] !== "0") {
+  // 01X (X != 0) 시작이면 총 숫자 10개 또는 11개
+  if (digits.startsWith("01") && digits.length >= 3 && digits[2] !== "0") {
     return digits.length === 10 || digits.length === 11;
   }
 
+  // 그 외는 숫자 6개 이상이면 허용
   return true;
 }
 
@@ -215,16 +264,15 @@ function samePhone(a, b) {
   return normalizePhone(a) === normalizePhone(b);
 }
 
-// 명세는 A01 형식이지만 입력은 A1/A01 둘 다 허용 후 내부 정규화
 function parseSeatInput(input) {
-  const upper = input.toUpperCase();
-  const match = upper.match(/^([A-Z])([0-9]{1,2})$/);
+  // 대문자만 허용
+  // 가능: A1, B3, C10
+  // 불가: a1, b3, A01, A09
+  const match = input.match(/^([A-Z])([1-9][0-9]?)$/);
   if (!match) return null;
 
   const row = match[1];
   const col = Number(match[2]);
-
-  if (col < 1 || col > 99) return null;
 
   return { row, col };
 }
@@ -309,7 +357,11 @@ function parseAndValidateFiles() {
       );
     }
 
-    const [id, movieId, theater, date, time, rowsRaw, colsRaw] = fields;
+    let [id, movieId, theater, date, time, rowsRaw, colsRaw] = fields;
+
+    date = normalizeDateInput(date);
+    time = normalizeTimeRange(time);
+
     const rows = Number(rowsRaw);
     const cols = Number(colsRaw);
 
@@ -334,6 +386,16 @@ function parseAndValidateFiles() {
     if (!validateTheaterSyntax(theater)) {
       throw new Error(
         makeFileError(SCREENINGS_FILE, i + 1, `상영관(${theater}) 형식이 올바르지 않습니다.`)
+      );
+    }
+
+    if (!validateFlexibleDateSyntax(date)) {
+      throw new Error(
+        makeFileError(
+          SCREENINGS_FILE,
+          i + 1,
+          `상영 날짜(${date}) 형식이 올바르지 않습니다. 숫자 8개와 '-'만 사용할 수 있습니다.`
+        )
       );
     }
 
@@ -402,13 +464,14 @@ function parseAndValidateFiles() {
       );
     }
 
-    const [id, phone, screeningId, seatRowRaw, seatColRaw] = fields;
+    let [id, phone, screeningId, seatRowRaw, seatColRaw] = fields;
+
     const seatRow = seatRowRaw.toUpperCase();
     const seatCol = Number(seatColRaw);
 
     if (!validateReservationCodeSyntax(id)) {
       throw new Error(
-        makeFileError(RESERVATIONS_FILE, i + 1, `reservationId(${id}) 형식이 올바르지 않습니다. 예: 0001`)
+        makeFileError(RESERVATIONS_FILE, i + 1, `reservationId(${id}) 형식이 올바르지 않습니다. 예: R001`)
       );
     }
 
@@ -461,12 +524,16 @@ function parseAndValidateFiles() {
 
 function generateReservationId(reservations) {
   const maxNum = reservations.reduce((max, r) => {
-    const num = Number(r.id);
+    const match = r.id.match(/^R([0-9]{3})$/);
+    if (!match) return max;
+
+    const num = Number(match[1]);
     if (Number.isNaN(num)) return max;
+
     return num > max ? num : max;
   }, 0);
 
-  return String(maxNum + 1).padStart(4, "0");
+  return `R${String(maxNum + 1).padStart(3, "0")}`;
 }
 
 /* =========================
@@ -487,13 +554,6 @@ function printMovies(movies) {
   console.log("\n[영화 목록]");
   movies.forEach((movie, index) => {
     console.log(`${index + 1}. ${movie.title} (${movie.id})`);
-  });
-}
-
-function printDates(dates) {
-  console.log("\n[상영 날짜 목록]");
-  dates.forEach((date, index) => {
-    console.log(`${index + 1}. ${date}`);
   });
 }
 
@@ -563,23 +623,41 @@ async function selectMovieStep(state) {
   }
 }
 
+// 날짜 직접 입력 방식
 async function selectDateStep(movieScreenings) {
   const dates = [...new Set(movieScreenings.map((s) => s.date))].sort();
 
-  console.log("\n[상영 날짜]");
-  dates.forEach((d, i) => console.log(`${i + 1}. ${d}`));
+  console.log("\n[상영 가능 날짜]");
+  dates.forEach((d) => console.log(`- ${d}`));
 
   while (true) {
-    const input = await askInput("상영 날짜 번호를 선택하세요: ");
+    const input = await askInput(
+      "상영 날짜를 입력하세요 (예: 20260325, 2026-03-25, -202-6-0-3-2-5): "
+    );
     if (isControl(input)) return input;
 
-    const idx = Number(input);
-    if (!Number.isInteger(idx) || idx < 1 || idx > dates.length) {
-      console.log("올바른 날짜 번호를 입력하세요.");
+    if (!validateFlexibleDateSyntax(input)) {
+      console.log(
+        "날짜 형식이 올바르지 않습니다. 숫자 8개와 '-'만 사용할 수 있으며, '-'는 아무 위치에나 올 수 있습니다."
+      );
       continue;
     }
 
-    return dates[idx - 1];
+    const normalizedDate = normalizeDateInput(input);
+
+    if (!validateDateSemantic(normalizedDate)) {
+      console.log(
+        "존재하지 않는 날짜입니다. YYYY는 2000년 이상이어야 하며, MM/DD는 실제 달력에 존재해야 합니다."
+      );
+      continue;
+    }
+
+    if (!dates.includes(normalizedDate)) {
+      console.log("해당 날짜에는 선택한 영화의 상영 정보가 없습니다.");
+      continue;
+    }
+
+    return normalizedDate;
   }
 }
 
@@ -651,17 +729,25 @@ async function selectSeatStep(state, selectedScreening) {
   while (true) {
     displaySeats(selectedScreening, state.reservations);
 
-    const input = await askInput("좌석을 입력하세요 (예: A1 또는 A01): ");
+    const maxRowChar = String.fromCharCode(64 + selectedScreening.rows);
+
+    const input = await askInput(
+      `좌석을 입력하세요 (예: A1 ~ ${maxRowChar}${selectedScreening.cols}): `
+    );
     if (isControl(input)) return input;
 
     const seat = parseSeatInput(input);
+
     if (!seat) {
-      console.log("좌석 입력 형식이 올바르지 않습니다. 예: A1, A01");
+      console.log("좌석 입력 형식이 올바르지 않습니다. 예: A1, B3, C10");
+      console.log("좌석 행은 대문자만 입력 가능하며, 한 자리 좌석번호는 A01처럼 0을 붙일 수 없습니다.");
       continue;
     }
 
     if (!validateSeatSemantic(selectedScreening, seat)) {
-      console.log("존재하지 않는 좌석입니다. 다시 선택하세요.");
+      console.log(
+        `좌석 범위를 벗어났습니다. 선택 가능한 좌석은 A1 ~ ${maxRowChar}${selectedScreening.cols} 입니다.`
+      );
       continue;
     }
 
@@ -680,7 +766,7 @@ async function confirmReservationStep(selectedMovie, selectedScreening, phone, s
   console.log(`상영관: ${selectedScreening.theater}관`);
   console.log(`날짜: ${selectedScreening.date}`);
   console.log(`시간: ${selectedScreening.time}`);
-  console.log(`좌석: ${seat.row}${seat.col}`);
+  console.log(`좌석: ${seat.row}${String(seat.col).padStart(2, "0")}`);
   console.log(`전화번호: ${phone}`);
 
   while (true) {
@@ -869,7 +955,7 @@ async function lookupReservationFlow(state) {
 
       const movieTitle = getMovieTitle(screening.movieId, state.movies);
       console.log(
-        `${index + 1}. 영화: ${movieTitle} | 상영관: ${screening.theater}관 | 날짜: ${screening.date} | 시간: ${screening.time} | 좌석: ${r.seatRow}${r.seatCol} | 예약번호: ${r.id}`
+        `${index + 1}. 영화: ${movieTitle} | 상영관: ${screening.theater}관 | 날짜: ${screening.date} | 시간: ${screening.time} | 좌석: ${r.seatRow}${String(r.seatCol).padStart(2, "0")} | 예약번호: ${r.id}`
       );
     });
 
@@ -877,10 +963,20 @@ async function lookupReservationFlow(state) {
   }
 }
 
+function checkRequiredFiles() {
+  if (!fs.existsSync(MOVIES_FILE) || !fs.existsSync(SCREENINGS_FILE)) {
+    console.log("반드시 필요한 movies.txt 또는 screenings.txt 파일이 없습니다! 프로그램을 종료합니다.");
+    rl.close();
+    process.exit(1);
+  }
+
+  if (!fs.existsSync(RESERVATIONS_FILE)) {
+    fs.writeFileSync(RESERVATIONS_FILE, "", "utf8");
+  }
+}
+
 async function main() {
-  ensureFileExists(MOVIES_FILE);
-  ensureFileExists(SCREENINGS_FILE);
-  ensureFileExists(RESERVATIONS_FILE);
+  checkRequiredFiles();
 
   let state;
   try {
