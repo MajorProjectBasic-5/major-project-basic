@@ -277,6 +277,17 @@ function parseSeatInput(input) {
   return { row, col };
 }
 
+// reservations.txt 저장용 좌석 형식도 A6 같은 한 칸 문자열로만 허용
+function parseStoredSeat(seatText) {
+  const match = seatText.match(/^([A-Z])([1-9][0-9]?)$/);
+  if (!match) return null;
+
+  return {
+    row: match[1],
+    col: Number(match[2]),
+  };
+}
+
 function validateSeatSemantic(screening, seat) {
   const rowIndex = seat.row.charCodeAt(0) - 65;
   return (
@@ -315,7 +326,7 @@ function parseAndValidateFiles() {
 
     if (fields.length !== 2) {
       throw new Error(
-        makeFileError(MOVIES_FILE, i + 1, "필드 개수가 올바르지 않습니다. (movieId|title)")
+        makeFileError(MOVIES_FILE, i + 1, "데이터 형식이 올바르지 않습니다. (movieId|title)")
       );
     }
 
@@ -352,13 +363,14 @@ function parseAndValidateFiles() {
         makeFileError(
           SCREENINGS_FILE,
           i + 1,
-          "필드 개수가 올바르지 않습니다. (screeningId|movieId|theater|date|time|rows|cols)"
+          "데이터 형식이 올바르지 않습니다. (screeningId|movieId|theater|date|time|rows|cols)"
         )
       );
     }
 
     let [id, movieId, theater, date, time, rowsRaw, colsRaw] = fields;
 
+    const rawDate = date;
     date = normalizeDateInput(date);
     time = normalizeTimeRange(time);
 
@@ -389,12 +401,12 @@ function parseAndValidateFiles() {
       );
     }
 
-    if (!validateFlexibleDateSyntax(date)) {
+    if (!validateFlexibleDateSyntax(rawDate)) {
       throw new Error(
         makeFileError(
           SCREENINGS_FILE,
           i + 1,
-          `상영 날짜(${date}) 형식이 올바르지 않습니다. 숫자 8개와 '-'만 사용할 수 있습니다.`
+          `상영 날짜(${rawDate}) 형식이 올바르지 않습니다. 숫자 8개와 '-'만 사용할 수 있습니다.`
         )
       );
     }
@@ -454,20 +466,31 @@ function parseAndValidateFiles() {
   const reservations = reservationsRaw.map((line, i) => {
     const fields = line.split("|");
 
-    if (fields.length !== 5) {
+    if (fields.length !== 4) {
       throw new Error(
         makeFileError(
           RESERVATIONS_FILE,
           i + 1,
-          "필드 개수가 올바르지 않습니다. (reservationId|phone|screeningId|seatRow|seatCol)"
+          "데이터 형식이 올바르지 않습니다. (reservationId|phone|screeningId|seat)"
         )
       );
     }
 
-    let [id, phone, screeningId, seatRowRaw, seatColRaw] = fields;
+    const [id, phone, screeningId, seatText] = fields;
 
-    const seatRow = seatRowRaw.toUpperCase();
-    const seatCol = Number(seatColRaw);
+    const parsedSeat = parseStoredSeat(seatText);
+    if (!parsedSeat) {
+      throw new Error(
+        makeFileError(
+          RESERVATIONS_FILE,
+          i + 1,
+          `좌석(${seatText}) 형식이 올바르지 않습니다. 예: A1, B3, C10`
+        )
+      );
+    }
+
+    const seatRow = parsedSeat.row;
+    const seatCol = parsedSeat.col;
 
     if (!validateReservationCodeSyntax(id)) {
       throw new Error(
@@ -498,7 +521,7 @@ function parseAndValidateFiles() {
 
     if (!validateSeatSemantic(screening, seat)) {
       throw new Error(
-        makeFileError(RESERVATIONS_FILE, i + 1, `존재하지 않는 좌석(${seatRow}${seatColRaw})입니다.`)
+        makeFileError(RESERVATIONS_FILE, i + 1, `존재하지 않는 좌석(${seatRow}${seatCol})입니다.`)
       );
     }
 
@@ -766,7 +789,7 @@ async function confirmReservationStep(selectedMovie, selectedScreening, phone, s
   console.log(`상영관: ${selectedScreening.theater}관`);
   console.log(`날짜: ${selectedScreening.date}`);
   console.log(`시간: ${selectedScreening.time}`);
-  console.log(`좌석: ${seat.row}${String(seat.col).padStart(2, "0")}`);
+  console.log(`좌석: ${seat.row}${seat.col}`);
   console.log(`전화번호: ${phone}`);
 
   while (true) {
@@ -795,7 +818,7 @@ function saveReservation(state, phone, screeningId, seat) {
   state.reservations.push(newReservation);
 
   const lines = state.reservations.map(
-    (r) => `${r.id}|${r.phone}|${r.screeningId}|${r.seatRow}|${r.seatCol}`
+    (r) => `${r.id}|${r.phone}|${r.screeningId}|${r.seatRow}${r.seatCol}`
   );
   writeLines(RESERVATIONS_FILE, lines);
 }
@@ -955,7 +978,7 @@ async function lookupReservationFlow(state) {
 
       const movieTitle = getMovieTitle(screening.movieId, state.movies);
       console.log(
-        `${index + 1}. 영화: ${movieTitle} | 상영관: ${screening.theater}관 | 날짜: ${screening.date} | 시간: ${screening.time} | 좌석: ${r.seatRow}${String(r.seatCol).padStart(2, "0")} | 예약번호: ${r.id}`
+        `${index + 1}. 영화: ${movieTitle} | 상영관: ${screening.theater}관 | 날짜: ${screening.date} | 시간: ${screening.time} | 좌석: ${r.seatRow}${r.seatCol} | 예약번호: ${r.id}`
       );
     });
 
