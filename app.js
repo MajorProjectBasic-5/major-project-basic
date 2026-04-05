@@ -978,7 +978,7 @@ async function lookupReservationFlow(state) {
 
       const movieTitle = getMovieTitle(screening.movieId, state.movies);
       console.log(
-        `${index + 1}. 영화: ${movieTitle} | 상영관: ${screening.theater}관 | 날짜: ${screening.date} | 시간: ${screening.time} | 좌석: ${r.seatRow}${r.seatCol} | 예약번호: ${r.id}`
+        `${index + 1}. 영화: ${movieTitle} | 상영관: ${screening.theater}관 | 날짜: ${screening.date} | 시간: ${screening.time} | 좌석: ${r.seatRow}${r.seatCol} | 예매코드: ${r.id}`
       );
     });
 
