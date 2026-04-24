@@ -568,7 +568,7 @@ for (let i = 0; i < reservations.length; i++) {
     const b = reservations[j];
 
     if (!samePhone(a.phone, b.phone)) continue;
-
+    if (a.screeningId === b.screeningId) continue;
     const screeningA = getScreeningById(a.screeningId, screenings);
     const screeningB = getScreeningById(b.screeningId, screenings);
 
@@ -757,7 +757,8 @@ function hasTimeConflict(phone, selectedScreening, reservations, screenings) {
 
   return reservations.some((r) => {
     if (!samePhone(r.phone, phone)) return false;
-
+    // 같은 상영이면 같은 전화번호로 여러 좌석 예약 허용
+  if (r.screeningId === selectedScreening.id) return false;
     const reservedScreening = getScreeningById(r.screeningId, screenings);
     if (!reservedScreening) return false;
 
@@ -846,9 +847,8 @@ async function confirmReservationStep(selectedMovie, selectedScreening, phone, s
     const input = await askInput("예매를 확정하시겠습니까? (y/n 또는 yes/no): ");
     if (isControl(input)) return input;
 
-    const lowered = input.toLowerCase();
-    if (["y", "yes"].includes(lowered)) return true;
-    if (["n", "no"].includes(lowered)) return false;
+    if (input === "y" || input === "yes") return true;
+    if (input === "n" || input === "no") return false;
 
     console.log("y/n 또는 yes/no를 입력하세요.");
   }
