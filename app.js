@@ -430,11 +430,27 @@ function parseAndValidateFiles() {
       );
     }
 
-    if (!validateSeatGridSyntax(rowsRaw, colsRaw) || !validateSeatGridSemantic(rows, cols)) {
-      throw new Error(
-        makeFileError(SCREENINGS_FILE, i + 1, `좌석 정보(${rowsRaw}x${colsRaw})가 올바르지 않습니다.`)
-      );
-    }
+    // 1. 문법 검사 (앞자리 0 포함)
+if (!validateSeatGridSyntax(rowsRaw, colsRaw)) {
+  throw new Error(
+    makeFileError(
+      SCREENINGS_FILE,
+      i + 1,
+      `좌석 형식(${rowsRaw}x${colsRaw})이 올바르지 않습니다. (자연수, 앞자리 0 금지)`
+    )
+  );
+}
+
+// 2. 의미 검사 (범위)
+if (!validateSeatGridSemantic(rows, cols)) {
+  throw new Error(
+    makeFileError(
+      SCREENINGS_FILE,
+      i + 1,
+      `좌석 범위(${rows}x${cols})가 올바르지 않습니다. (행:1~26, 열:1~99)`
+    )
+  );
+}
 
     screeningIdSet.add(id);
     return { id, movieId, theater, date, time, rows, cols };
