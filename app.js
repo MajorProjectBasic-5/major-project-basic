@@ -138,9 +138,9 @@ function validateReservationCodeSyntax(code) {
   return /^R[0-9]{3}$/.test(code);
 }
 
-// 상영관: 1~99
+
 function validateTheaterSyntax(theater) {
-  return /^[1-9][0-9]?$/.test(theater);
+  return /^[1-9]$/.test(theater);
 }
 
 // 날짜 내부 저장 형식: YYYY-MM-DD
@@ -207,7 +207,13 @@ function parseTimeRange(time) {
   const normalized = normalizeTimeRange(time);
   const [startStr, endStr] = normalized.split(" - ");
   const start = timeToMinutes(startStr);
-  const end = timeToMinutes(endStr);
+  let end = timeToMinutes(endStr);
+
+  // 23:30 - 02:00 처럼 자정을 넘기는 상영 허용
+  if (end <= start) {
+    end += 24 * 60;
+  }
+
   return { start, end };
 }
 
@@ -226,7 +232,7 @@ function validateSeatGridSyntax(rows, cols) {
 }
 
 function validateSeatGridSemantic(rows, cols) {
-  return rows > 0 && cols > 0 && rows * cols <= 200;
+  return rows > 0 && cols > 0 && rows <= 26 && cols <= 99;
 }
 
 function validatePhoneSyntax(phone) {
@@ -370,12 +376,24 @@ function parseAndValidateFiles() {
 
     let [id, movieId, theater, date, time, rowsRaw, colsRaw] = fields;
 
-    const rawDate = date;
-    date = normalizeDateInput(date);
+    function validateStrictDateSyntax(date) {
+  return /^[0-9]{4}-[0-9]{2}-[0-9]{2}$/.test(date);
+}
+ 
     time = normalizeTimeRange(time);
 
     const rows = Number(rowsRaw);
     const cols = Number(colsRaw);
+
+    if (!validateStrictDateSyntax(date)) {
+  throw new Error(
+    makeFileError(
+      SCREENINGS_FILE,
+      i + 1,
+      `상영 날짜(${date}) 형식이 올바르지 않습니다. 예: 2026-03-25`
+    )
+  );
+}
 
     if (!validateScreeningCodeSyntax(id)) {
       throw new Error(
@@ -504,11 +522,21 @@ function parseAndValidateFiles() {
       );
     }
 
-    if (!validatePhoneSyntax(phone)) {
-      throw new Error(
-        makeFileError(RESERVATIONS_FILE, i + 1, `전화번호(${phone}) 형식이 올바르지 않습니다.`)
-      );
-    }
+    if (!/^[0-9]+$/.test(phone) || !validatePhoneSyntax(phone)) {
+  throw new Error(
+    makeFileError(RESERVATIONS_FILE, i + 1, `전화번호(${phone}) 형식이 올바르지 않습니다.`)
+  );
+}
+
+    if (!validateScreeningCodeSyntax(screeningId)) {
+  throw new Error(
+    makeFileError(
+      RESERVATIONS_FILE,
+      i + 1,
+      `screeningId(${screeningId}) 형식이 올바르지 않습니다. 예: S001`
+    )
+  );
+}
 
     if (!screeningIdSet.has(screeningId)) {
       throw new Error(
@@ -541,6 +569,37 @@ function parseAndValidateFiles() {
     }
     reservedSeatSet.add(seatKey);
   }
+
+  // 같은 전화번호로 같은 날짜에 시간이 겹치는 상영 중복 예약 금지
+for (let i = 0; i < reservations.length; i++) {
+  for (let j = i + 1; j < reservations.length; j++) {
+    const a = reservations[i];
+    const b = reservations[j];
+
+    if (!samePhone(a.phone, b.phone)) continue;
+
+    const screeningA = getScreeningById(a.screeningId, screenings);
+    const screeningB = getScreeningById(b.screeningId, screenings);
+
+    if (!screeningA || !screeningB) continue;
+    if (screeningA.date !== screeningB.date) continue;
+
+    const rangeA = parseTimeRange(screeningA.time);
+    const rangeB = parseTimeRange(screeningB.time);
+
+    if (!rangeA || !rangeB) continue;
+
+    if (isTimeOverlap(rangeA, rangeB)) {
+      throw new Error(
+        makeFileError(
+          RESERVATIONS_FILE,
+          j + 1,
+          "동일 전화번호로 시간이 겹치는 상영이 중복 예약되어 있습니다."
+        )
+      );
+    }
+  }
+}
 
   return { movies, screenings, reservations };
 }
@@ -735,7 +794,7 @@ async function inputPhoneStep(state, selectedScreening) {
       continue;
     }
 
-    return input;
+    return normalizePhone(input);
   }
 }
 
