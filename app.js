@@ -419,15 +419,6 @@ function parseAndValidateFiles() {
       );
     }
 
-    if (!validateFlexibleDateSyntax(rawDate)) {
-      throw new Error(
-        makeFileError(
-          SCREENINGS_FILE,
-          i + 1,
-          `상영 날짜(${rawDate}) 형식이 올바르지 않습니다. 숫자 8개와 '-'만 사용할 수 있습니다.`
-        )
-      );
-    }
 
     if (!validateDateSemantic(date)) {
       throw new Error(
