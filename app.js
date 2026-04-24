@@ -239,8 +239,6 @@ function validatePhoneSyntax(phone) {
   // 숫자와 - 만 허용
   if (!/^[0-9-]+$/.test(phone)) return false;
 
-  // 마지막 문자는 숫자여야 함
-  if (!/[0-9]$/.test(phone)) return false;
 
   // - 제거 후 순수 숫자 추출
   const digits = phone.replace(/-/g, "");
