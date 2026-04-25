@@ -180,6 +180,14 @@ function validateDateSemantic(date) {
   return day >= 1 && day <= lastDay;
 }
 
+function validateMaxDuration(time) {
+  const range = parseTimeRange(time);
+  if (!range) return false;
+
+  const duration = range.end - range.start; // 분 단위
+  return duration <= 360; // 6시간 = 360분
+}
+
 // 상영 시간: "HH:MM-HH:MM" 또는 "HH:MM - HH:MM" 둘 다 허용
 function validateTimeRangeSyntax(time) {
   return /^([0-1][0-9]|2[0-3]):([0-5][0-9])\s*-\s*([0-1][0-9]|2[0-3]):([0-5][0-9])$/.test(time);
@@ -215,6 +223,19 @@ function parseTimeRange(time) {
   }
 
   return { start, end };
+}
+
+function getAbsoluteRange(screening) {
+  const baseDate = new Date(screening.date);
+  const baseMinutes = baseDate.getTime() / (1000 * 60);
+
+  const range = parseTimeRange(screening.time);
+  if (!range) return null;
+
+  return {
+    start: baseMinutes + range.start,
+    end: baseMinutes + range.end,
+  };
 }
 
 function validateTimeSemantic(time) {
@@ -324,13 +345,21 @@ function parseAndValidateFiles() {
   const screeningsRaw = readRawLines(SCREENINGS_FILE);
   const reservationsRaw = readRawLines(RESERVATIONS_FILE);
 
+  if (moviesRaw.length === 0) {
+  throw new Error("영화 정보 파일 내용 누락 오류: movies.txt 파일이 비어 있습니다.");
+}
+ 
+  if (screeningsRaw.length === 0) {
+    throw new Error("상영 정보 파일 내용이 비어있습니다.");
+  }
+
   const movieIdSet = new Set();
   const movies = moviesRaw.map((line, i) => {
     const fields = line.split("|");
 
     if (fields.length !== 2) {
       throw new Error(
-        makeFileError(MOVIES_FILE, i + 1, "데이터 형식이 올바르지 않습니다. (movieId|title)")
+        makeFileError(MOVIES_FILE, i + 1, "데이터 형식이 올바르지 않습니다. (movieId|title) 예: M001|영화 제목")
       );
     }
 
@@ -405,6 +434,16 @@ function parseAndValidateFiles() {
       );
     }
 
+    if (!validateMovieCodeSyntax(movieId)) {
+  throw new Error(
+    makeFileError(
+      SCREENINGS_FILE,
+      i + 1,
+      `movieId(${movieId}) 형식이 올바르지 않습니다. 예: M001`
+    )
+  );
+}
+
     if (!movieIdSet.has(movieId)) {
       throw new Error(
         makeFileError(SCREENINGS_FILE, i + 1, `존재하지 않는 movieId(${movieId}) 참조`)
@@ -424,11 +463,19 @@ function parseAndValidateFiles() {
       );
     }
 
-    if (!validateTimeRangeSyntax(time) || !validateTimeSemantic(time)) {
-      throw new Error(
-        makeFileError(SCREENINGS_FILE, i + 1, `상영 시간(${time})이 올바르지 않습니다. 예: 14:00 - 16:14`)
-      );
-    }
+if (
+  !validateTimeRangeSyntax(time) ||
+  !validateTimeSemantic(time) ||
+  !validateMaxDuration(time)
+) {
+  throw new Error(
+    makeFileError(
+      SCREENINGS_FILE,
+      i + 1,
+      `상영 시간(${time})이 올바르지 않습니다(형식과 범위를 만족하지않거나 6시간 이상 입니다.). 예: 14:00 - 16:14`
+    )
+  );
+}
 
     // 1. 문법 검사 (앞자리 0 포함)
 if (!validateSeatGridSyntax(rowsRaw, colsRaw)) {
@@ -436,7 +483,7 @@ if (!validateSeatGridSyntax(rowsRaw, colsRaw)) {
     makeFileError(
       SCREENINGS_FILE,
       i + 1,
-      `좌석 형식(${rowsRaw}x${colsRaw})이 올바르지 않습니다. (자연수, 앞자리 0 금지)`
+      `좌석 형식(${rowsRaw}x${colsRaw})이 올바르지 않습니다. (자연수여야함, 앞자리 0 금지)`
     )
   );
 }
@@ -456,34 +503,54 @@ if (!validateSeatGridSemantic(rows, cols)) {
     return { id, movieId, theater, date, time, rows, cols };
   });
 
-  // 같은 상영관 + 같은 날짜에서 상영 시간 겹침 검사
-  const screeningsByTheaterDate = new Map();
-  for (let i = 0; i < screenings.length; i++) {
-    const s = screenings[i];
-    const key = `${s.theater}|${s.date}`;
-    const currentRange = parseTimeRange(s.time);
+  // 상영관별 좌석 구조 일관성 검사
+const theaterSeatMap = new Map();
 
-    if (!screeningsByTheaterDate.has(key)) {
-      screeningsByTheaterDate.set(key, []);
+for (let i = 0; i < screenings.length; i++) {
+  const s = screenings[i];
+  const key = s.theater;
+  const seatInfo = `${s.rows}x${s.cols}`;
+
+  if (!theaterSeatMap.has(key)) {
+    theaterSeatMap.set(key, seatInfo);
+  } else {
+    const existing = theaterSeatMap.get(key);
+    if (existing !== seatInfo) {
+      throw new Error(
+        makeFileError(
+          SCREENINGS_FILE,
+          i + 1,
+          `같은 상영관(${key}관)의 좌석 수가 일관되지 않습니다.`
+        )
+      );
     }
-
-    const list = screeningsByTheaterDate.get(key);
-
-    for (const prev of list) {
-      const prevRange = parseTimeRange(prev.time);
-      if (isTimeOverlap(currentRange, prevRange)) {
-        throw new Error(
-          makeFileError(
-            SCREENINGS_FILE,
-            i + 1,
-            `같은 상영관/날짜의 시간이 겹칩니다. (${s.theater}관, ${s.date}, ${s.time})`
-          )
-        );
-      }
-    }
-
-    list.push(s);
   }
+}
+
+ // 같은 상영관에서 날짜를 넘어가는 경우까지 포함한 시간 겹침 검사
+for (let i = 0; i < screenings.length; i++) {
+  for (let j = i + 1; j < screenings.length; j++) {
+    const a = screenings[i];
+    const b = screenings[j];
+
+    if (a.theater !== b.theater) continue;
+
+    const rangeA = getAbsoluteRange(a);
+    const rangeB = getAbsoluteRange(b);
+
+    if (!rangeA || !rangeB) continue;
+
+    if (isTimeOverlap(rangeA, rangeB)) {
+      throw new Error(
+        makeFileError(
+          SCREENINGS_FILE,
+          j + 1,
+          `같은 상영관에서 시간이 겹칩니다. (${a.theater}관)`
+        )
+      );
+    }
+  }
+}
 
   const reservationIdSet = new Set();
   const reservations = reservationsRaw.map((line, i) => {
@@ -553,10 +620,17 @@ if (!validateSeatGridSemantic(rows, cols)) {
     const seat = { row: seatRow, col: seatCol };
 
     if (!validateSeatSemantic(screening, seat)) {
-      throw new Error(
-        makeFileError(RESERVATIONS_FILE, i + 1, `존재하지 않는 좌석(${seatRow}${seatCol})입니다.`)
-      );
-    }
+  const maxRowChar = String.fromCharCode(64 + screening.rows);
+  const maxCol = screening.cols;
+
+  throw new Error(
+    makeFileError(
+      RESERVATIONS_FILE,
+      i + 1,
+      `존재하지 않는 좌석(${seatRow}${seatCol})입니다. 선택 가능한 범위: A1 ~ ${maxRowChar}${maxCol}`
+    )
+  );
+}
 
     reservationIdSet.add(id);
     return { id, phone, screeningId, seatRow, seatCol };
@@ -587,14 +661,12 @@ for (let i = 0; i < reservations.length; i++) {
     const screeningB = getScreeningById(b.screeningId, screenings);
 
     if (!screeningA || !screeningB) continue;
-    if (screeningA.date !== screeningB.date) continue;
+    const rangeA = getAbsoluteRange(screeningA);
+const rangeB = getAbsoluteRange(screeningB);
 
-    const rangeA = parseTimeRange(screeningA.time);
-    const rangeB = parseTimeRange(screeningB.time);
+if (!rangeA || !rangeB) continue;
 
-    if (!rangeA || !rangeB) continue;
-
-    if (isTimeOverlap(rangeA, rangeB)) {
+if (isTimeOverlap(rangeA, rangeB)) {
       throw new Error(
         makeFileError(
           RESERVATIONS_FILE,
@@ -776,12 +848,12 @@ function hasTimeConflict(phone, selectedScreening, reservations, screenings) {
     const reservedScreening = getScreeningById(r.screeningId, screenings);
     if (!reservedScreening) return false;
 
-    if (reservedScreening.date !== selectedScreening.date) return false;
+   const selectedAbs = getAbsoluteRange(selectedScreening);
+const reservedAbs = getAbsoluteRange(reservedScreening);
 
-    const reservedRange = parseTimeRange(reservedScreening.time);
-    if (!reservedRange) return false;
+if (!selectedAbs || !reservedAbs) return false;
 
-    return isTimeOverlap(selectedRange, reservedRange);
+return isTimeOverlap(selectedAbs, reservedAbs);
   });
 }
 
@@ -1051,8 +1123,14 @@ async function lookupReservationFlow(state) {
 }
 
 function checkRequiredFiles() {
-  if (!fs.existsSync(MOVIES_FILE) || !fs.existsSync(SCREENINGS_FILE)) {
-    console.log("반드시 필요한 movies.txt 또는 screenings.txt 파일이 없습니다! 프로그램을 종료합니다.");
+  if (!fs.existsSync(SCREENINGS_FILE)) {
+    console.log("상영 정보 파일이 존재하지 않습니다.");
+    rl.close();
+    process.exit(1);
+  }
+
+  if (!fs.existsSync(MOVIES_FILE)) {
+    console.log("영화 정보 파일이 존재하지 않습니다.");
     rl.close();
     process.exit(1);
   }

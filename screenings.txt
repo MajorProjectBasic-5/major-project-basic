@@ -1,8 +1,31 @@
+S000|M001|1|2026-03-25|09:00 - 07:00|5|6
 S001|M001|1|2026-03-25|14:00 - 16:14|5|6
-S002|M001|2|2026-03-25|18:00 - 20:14|5|6
-S003|M001|2|2026-03-26|18:00 - 20:14|5|6
-S004|M002|1|2026-03-25|18:00 - 20:49|6|6
+S002|M001|2|2026-03-25|18:00 - 20:14|6|6
+S003|M001|2|2026-03-26|18:00 - 20:14|6|6
+S004|M002|1|2026-03-25|18:00 - 20:49|5|6
 S005|M003|3|2026-03-26|16:30 - 18:05|4|5
 S006|M003|4|2026-03-26|19:00 - 20:35|4|5
 S007|M002|2|2026-03-27|14:00 - 16:49|6|6
 S008|M002|2|2026-03-27|10:00 - 12:49|6|6
+
+function parseTimeRange(time) {
+  if (!validateTimeRangeSyntax(time)) return null;
+
+  const normalized = normalizeTimeRange(time);
+  const [startStr, endStr] = normalized.split(" - ");
+  const start = timeToMinutes(startStr);
+  let end = timeToMinutes(endStr);
+
+  if (end <= start) {
+    const durationIfNextDay = (end + 1440) - start;
+
+    // 🔥 자정 넘김 허용 조건 (예: 6시간 이하만)
+    if (durationIfNextDay > 360) {
+      return null; // ❌ 비정상 (14:00~12:00 같은거)
+    }
+
+    end += 1440;
+  }
+
+  return { start, end };
+}
