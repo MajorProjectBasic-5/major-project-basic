@@ -95,7 +95,6 @@ async function askInput(question, options = {}) {
 
   while (true) {
     const input = await askRaw(question);
-    const lowered = input.toLowerCase();
 
     // 빈 입력 방지
     if (!input) {
@@ -105,16 +104,16 @@ async function askInput(question, options = {}) {
       continue;
     }
 
-    if (lowered === CMD.HELP) {
+    if (input === CMD.HELP) {
       printHelp();
       continue; // 도움말 출력 후 다시 입력받음
     }
 
-    if (lowered === CMD.QUIT) {
+    if (input === CMD.QUIT) {
       safeExit(); // 즉시 종료
     }
 
-    if (lowered === CMD.BACK) {
+    if (input === CMD.BACK) {
       if (!allowBack) {
         console.log("이미 최상위 단계입니다.");
         continue;
@@ -122,7 +121,7 @@ async function askInput(question, options = {}) {
       return CTRL.BACK; // 제어 객체 반환
     }
 
-    if (lowered === CMD.MAIN) {
+    if (input === CMD.MAIN) {
       if (!allowMain) {
         console.log("이미 메인 메뉴입니다.");
         continue;
