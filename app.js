@@ -31,7 +31,7 @@ const rl = readline.createInterface({
    파일 I/O 유틸리티
 ========================= */
 
-// 파일이 존재하지 않으면 빈 파일로 생성하는 함수
+// 파일이 존재하지 않으면 빈 파일로 생성하는 함수. reservations.txt(예매 내역 정보 파일)에만 해당함.
 function ensureFileExists(fileName) {
   if (!fs.existsSync(fileName)) {
     fs.writeFileSync(fileName, "", "utf8");
