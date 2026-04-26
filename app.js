@@ -99,7 +99,9 @@ async function askInput(question, options = {}) {
 
     // 빈 입력 방지
     if (!input) {
-      console.log("빈 입력은 허용되지 않습니다. back/main/help/quit 또는 올바른 값을 입력하세요.");
+      console.log(
+        "빈 입력은 허용되지 않습니다. back/main/help/quit 또는 올바른 값을 입력하세요.",
+      );
       continue;
     }
 
@@ -215,13 +217,15 @@ function validateMaxDuration(time) {
 
 // 상영 시간: "HH:MM-HH:MM" 또는 "HH:MM - HH:MM" 정규식 검증 (24시간제)
 function validateTimeRangeSyntax(time) {
-  return /^([0-1][0-9]|2[0-3]):([0-5][0-9])\s*-\s*([0-1][0-9]|2[0-3]):([0-5][0-9])$/.test(time);
+  return /^([0-1][0-9]|2[0-3]):([0-5][0-9])\s*-\s*([0-1][0-9]|2[0-3]):([0-5][0-9])$/.test(
+    time,
+  );
 }
 
 // 상영 시간을 "HH:MM - HH:MM" 포맷으로 통일하여 정규화
 function normalizeTimeRange(time) {
   const match = time.match(
-    /^([0-1][0-9]|2[0-3]):([0-5][0-9])\s*-\s*([0-1][0-9]|2[0-3]):([0-5][0-9])$/
+    /^([0-1][0-9]|2[0-3]):([0-5][0-9])\s*-\s*([0-1][0-9]|2[0-3]):([0-5][0-9])$/,
   );
   if (!match) return time;
 
@@ -281,7 +285,18 @@ function isTimeOverlap(rangeA, rangeB) {
 
 // 좌석 행렬 형태 검증: 1~9로 시작하는 자연수인지 (01 불가)
 function validateSeatGridSyntax(rows, cols) {
-  return /^[1-9][0-9]*$/.test(String(rows)) && /^[1-9][0-9]*$/.test(String(cols));
+  // 숫자 형식
+  if (!/^[1-9][0-9]*$/.test(String(rows))) return false;
+  if (!/^[1-9][0-9]*$/.test(String(cols))) return false;
+
+  const r = Number(rows);
+  const c = Number(cols);
+
+  // 절대 좌석 체계 제한
+  if (r > 26) return false; // Z까지
+  if (c > 99) return false; // 두 자리까지
+
+  return true;
 }
 
 // 좌석 행렬 의미 검증: 행 1~26(A~Z), 열 1~99 범위 제한
@@ -388,9 +403,11 @@ function parseAndValidateFiles() {
 
   // 영화 데이터가 없으면 진행 불가
   if (moviesRaw.length === 0) {
-    throw new Error("영화 정보 파일 내용 누락 오류: movies.txt 파일이 비어 있습니다.");
+    throw new Error(
+      "영화 정보 파일 내용 누락 오류: movies.txt 파일이 비어 있습니다.",
+    );
   }
- 
+
   // 상영 데이터가 없으면 진행 불가
   if (screeningsRaw.length === 0) {
     throw new Error("상영 정보 파일 내용이 비어있습니다.");
@@ -403,7 +420,11 @@ function parseAndValidateFiles() {
 
     if (fields.length !== 2) {
       throw new Error(
-        makeFileError(MOVIES_FILE, i + 1, "데이터 형식이 올바르지 않습니다. (movieId|title) 예: M001|영화 제목")
+        makeFileError(
+          MOVIES_FILE,
+          i + 1,
+          "데이터 형식이 올바르지 않습니다. (movieId|title) 예: M001|영화 제목",
+        ),
       );
     }
 
@@ -411,19 +432,27 @@ function parseAndValidateFiles() {
 
     if (!validateMovieCodeSyntax(id)) {
       throw new Error(
-        makeFileError(MOVIES_FILE, i + 1, `movieId(${id}) 형식이 올바르지 않습니다. 예: M001`)
+        makeFileError(
+          MOVIES_FILE,
+          i + 1,
+          `movieId(${id}) 형식이 올바르지 않습니다. 예: M001`,
+        ),
       );
     }
 
     if (movieIdSet.has(id)) {
       throw new Error(
-        makeFileError(MOVIES_FILE, i + 1, `중복된 movieId(${id})가 있습니다.`)
+        makeFileError(MOVIES_FILE, i + 1, `중복된 movieId(${id})가 있습니다.`),
       );
     }
 
     if (!validateMovieTitleSyntax(title)) {
       throw new Error(
-        makeFileError(MOVIES_FILE, i + 1, "영화 제목 형식이 올바르지 않습니다.")
+        makeFileError(
+          MOVIES_FILE,
+          i + 1,
+          "영화 제목 형식이 올바르지 않습니다.",
+        ),
       );
     }
 
@@ -441,8 +470,8 @@ function parseAndValidateFiles() {
         makeFileError(
           SCREENINGS_FILE,
           i + 1,
-          "데이터 형식이 올바르지 않습니다. (screeningId|movieId|theater|date|time|rows|cols)"
-        )
+          "데이터 형식이 올바르지 않습니다. (screeningId|movieId|theater|date|time|rows|cols)",
+        ),
       );
     }
 
@@ -452,7 +481,7 @@ function parseAndValidateFiles() {
     function validateStrictDateSyntax(date) {
       return /^[0-9]{4}-[0-9]{2}-[0-9]{2}$/.test(date);
     }
- 
+
     time = normalizeTimeRange(time);
 
     const rows = Number(rowsRaw);
@@ -463,20 +492,28 @@ function parseAndValidateFiles() {
         makeFileError(
           SCREENINGS_FILE,
           i + 1,
-          `상영 날짜(${date}) 형식이 올바르지 않습니다. 예: 2026-03-25`
-        )
+          `상영 날짜(${date}) 형식이 올바르지 않습니다. 예: 2026-03-25`,
+        ),
       );
     }
 
     if (!validateScreeningCodeSyntax(id)) {
       throw new Error(
-        makeFileError(SCREENINGS_FILE, i + 1, `screeningId(${id}) 형식이 올바르지 않습니다. 예: S001`)
+        makeFileError(
+          SCREENINGS_FILE,
+          i + 1,
+          `screeningId(${id}) 형식이 올바르지 않습니다. 예: S001`,
+        ),
       );
     }
 
     if (screeningIdSet.has(id)) {
       throw new Error(
-        makeFileError(SCREENINGS_FILE, i + 1, `중복된 screeningId(${id})가 있습니다.`)
+        makeFileError(
+          SCREENINGS_FILE,
+          i + 1,
+          `중복된 screeningId(${id})가 있습니다.`,
+        ),
       );
     }
 
@@ -485,27 +522,39 @@ function parseAndValidateFiles() {
         makeFileError(
           SCREENINGS_FILE,
           i + 1,
-          `movieId(${movieId}) 형식이 올바르지 않습니다. 예: M001`
-        )
+          `movieId(${movieId}) 형식이 올바르지 않습니다. 예: M001`,
+        ),
       );
     }
 
     // 존재하는 영화 ID인지 외래키(Foreign Key) 참조 무결성 검사
     if (!movieIdSet.has(movieId)) {
       throw new Error(
-        makeFileError(SCREENINGS_FILE, i + 1, `존재하지 않는 movieId(${movieId}) 참조`)
+        makeFileError(
+          SCREENINGS_FILE,
+          i + 1,
+          `존재하지 않는 movieId(${movieId}) 참조`,
+        ),
       );
     }
 
     if (!validateTheaterSyntax(theater)) {
       throw new Error(
-        makeFileError(SCREENINGS_FILE, i + 1, `상영관(${theater}) 형식이 올바르지 않습니다.`)
+        makeFileError(
+          SCREENINGS_FILE,
+          i + 1,
+          `상영관(${theater}) 형식이 올바르지 않습니다.`,
+        ),
       );
     }
 
     if (!validateDateSemantic(date)) {
       throw new Error(
-        makeFileError(SCREENINGS_FILE, i + 1, `상영 날짜(${date})가 올바르지 않습니다.`)
+        makeFileError(
+          SCREENINGS_FILE,
+          i + 1,
+          `상영 날짜(${date})가 올바르지 않습니다.`,
+        ),
       );
     }
 
@@ -518,19 +567,19 @@ function parseAndValidateFiles() {
         makeFileError(
           SCREENINGS_FILE,
           i + 1,
-          `상영 시간(${time})이 올바르지 않습니다(형식과 범위를 만족하지않거나 6시간을 초과합니다.). 예: 14:00 - 16:14`
-        )
+          `상영 시간(${time})이 올바르지 않습니다(형식과 범위를 만족하지않거나 6시간을 초과합니다.). 예: 14:00 - 16:14`,
+        ),
       );
     }
 
-    // 1. 문법 검사 (앞자리 0 포함 방지)
+    // 1. 문법 검사
     if (!validateSeatGridSyntax(rowsRaw, colsRaw)) {
       throw new Error(
         makeFileError(
           SCREENINGS_FILE,
           i + 1,
-          `좌석 형식(${rowsRaw}x${colsRaw})이 올바르지 않습니다. (자연수여야함, 앞자리 0 금지)`
-        )
+          `좌석 형식(${rowsRaw}x${colsRaw})이 올바르지 않습니다. (행:1~26, 열:1~99)`,
+        ),
       );
     }
 
@@ -540,8 +589,8 @@ function parseAndValidateFiles() {
         makeFileError(
           SCREENINGS_FILE,
           i + 1,
-          `좌석 범위(${rows}x${cols})가 올바르지 않습니다. (행:1~26, 열:1~99)`
-        )
+          `좌석 범위(${rows}x${cols})가 올바르지 않습니다. (행:1~26, 열:1~99)`,
+        ),
       );
     }
 
@@ -566,8 +615,8 @@ function parseAndValidateFiles() {
           makeFileError(
             SCREENINGS_FILE,
             i + 1,
-            `같은 상영관(${key}관)의 좌석 수가 일관되지 않습니다.`
-          )
+            `같은 상영관(${key}관)의 좌석 수가 일관되지 않습니다.`,
+          ),
         );
       }
     }
@@ -593,8 +642,8 @@ function parseAndValidateFiles() {
           makeFileError(
             SCREENINGS_FILE,
             j + 1,
-            `같은 상영관에서 시간이 겹칩니다. (${a.theater}관)`
-          )
+            `같은 상영관에서 시간이 겹칩니다. (${a.theater}관)`,
+          ),
         );
       }
     }
@@ -610,8 +659,8 @@ function parseAndValidateFiles() {
         makeFileError(
           RESERVATIONS_FILE,
           i + 1,
-          "데이터 형식이 올바르지 않습니다. (reservationId|phone|screeningId|seat)"
-        )
+          "데이터 형식이 올바르지 않습니다. (reservationId|phone|screeningId|seat)",
+        ),
       );
     }
 
@@ -623,8 +672,8 @@ function parseAndValidateFiles() {
         makeFileError(
           RESERVATIONS_FILE,
           i + 1,
-          `좌석(${seatText}) 형식이 올바르지 않습니다. 예: A1, B3, C10`
-        )
+          `좌석(${seatText}) 형식이 올바르지 않습니다. 예: A1, B3, C10`,
+        ),
       );
     }
 
@@ -633,19 +682,31 @@ function parseAndValidateFiles() {
 
     if (!validateReservationCodeSyntax(id)) {
       throw new Error(
-        makeFileError(RESERVATIONS_FILE, i + 1, `reservationId(${id}) 형식이 올바르지 않습니다. 예: R001`)
+        makeFileError(
+          RESERVATIONS_FILE,
+          i + 1,
+          `reservationId(${id}) 형식이 올바르지 않습니다. 예: R001`,
+        ),
       );
     }
 
     if (reservationIdSet.has(id)) {
       throw new Error(
-        makeFileError(RESERVATIONS_FILE, i + 1, `중복된 reservationId(${id})가 있습니다.`)
+        makeFileError(
+          RESERVATIONS_FILE,
+          i + 1,
+          `중복된 reservationId(${id})가 있습니다.`,
+        ),
       );
     }
 
     if (!/^[0-9]+$/.test(phone) || !validatePhoneSyntax(phone)) {
       throw new Error(
-        makeFileError(RESERVATIONS_FILE, i + 1, `전화번호(${phone}) 형식이 올바르지 않습니다.`)
+        makeFileError(
+          RESERVATIONS_FILE,
+          i + 1,
+          `전화번호(${phone}) 형식이 올바르지 않습니다.`,
+        ),
       );
     }
 
@@ -654,15 +715,19 @@ function parseAndValidateFiles() {
         makeFileError(
           RESERVATIONS_FILE,
           i + 1,
-          `screeningId(${screeningId}) 형식이 올바르지 않습니다. 예: S001`
-        )
+          `screeningId(${screeningId}) 형식이 올바르지 않습니다. 예: S001`,
+        ),
       );
     }
 
     // 존재하는 상영 ID인지 참조 검사
     if (!screeningIdSet.has(screeningId)) {
       throw new Error(
-        makeFileError(RESERVATIONS_FILE, i + 1, `존재하지 않는 screeningId(${screeningId}) 참조`)
+        makeFileError(
+          RESERVATIONS_FILE,
+          i + 1,
+          `존재하지 않는 screeningId(${screeningId}) 참조`,
+        ),
       );
     }
 
@@ -678,8 +743,8 @@ function parseAndValidateFiles() {
         makeFileError(
           RESERVATIONS_FILE,
           i + 1,
-          `존재하지 않는 좌석(${seatRow}${seatCol})입니다. 선택 가능한 범위: A1 ~ ${maxRowChar}${maxCol}`
-        )
+          `존재하지 않는 좌석(${seatRow}${seatCol})입니다. 선택 가능한 범위: A1 ~ ${maxRowChar}${maxCol}`,
+        ),
       );
     }
 
@@ -694,7 +759,11 @@ function parseAndValidateFiles() {
     const seatKey = `${r.screeningId}|${r.seatRow}|${r.seatCol}`;
     if (reservedSeatSet.has(seatKey)) {
       throw new Error(
-        makeFileError(RESERVATIONS_FILE, i + 1, "이미 예매된 좌석이 중복 저장되어 있습니다.")
+        makeFileError(
+          RESERVATIONS_FILE,
+          i + 1,
+          "이미 예매된 좌석이 중복 저장되어 있습니다.",
+        ),
       );
     }
     reservedSeatSet.add(seatKey);
@@ -708,12 +777,12 @@ function parseAndValidateFiles() {
 
       if (!samePhone(a.phone, b.phone)) continue; // 폰 번호 다르면 패스
       if (a.screeningId === b.screeningId) continue; // 동일 상영 여러 좌석 예매는 허용
-      
+
       const screeningA = getScreeningById(a.screeningId, screenings);
       const screeningB = getScreeningById(b.screeningId, screenings);
 
       if (!screeningA || !screeningB) continue;
-      
+
       const rangeA = getAbsoluteRange(screeningA);
       const rangeB = getAbsoluteRange(screeningB);
 
@@ -724,8 +793,8 @@ function parseAndValidateFiles() {
           makeFileError(
             RESERVATIONS_FILE,
             j + 1,
-            "동일 전화번호로 시간이 겹치는 상영이 중복 예매되어 있습니다."
-          )
+            "동일 전화번호로 시간이 겹치는 상영이 중복 예매되어 있습니다.",
+          ),
         );
       }
     }
@@ -780,14 +849,16 @@ function printScreenings(screenings, movies) {
     const totalSeats = s.rows * s.cols;
 
     console.log(
-      `${index + 1}. ${getMovieTitle(s.movieId, movies)} | ${s.theater}관 | ${s.date} | ${s.time} | 총 ${totalSeats}석`
+      `${index + 1}. ${getMovieTitle(s.movieId, movies)} | ${s.theater}관 | ${s.date} | ${s.time} | 총 ${totalSeats}석`,
     );
   });
 }
 
 // 좌석 배치도 콘솔 드로잉 (O: 빈자리, X: 예약됨)
 function displaySeats(screening, reservations) {
-  const reservedSeats = reservations.filter((r) => r.screeningId === screening.id);
+  const reservedSeats = reservations.filter(
+    (r) => r.screeningId === screening.id,
+  );
 
   console.log("\n[좌석 배치도]");
   process.stdout.write("    ");
@@ -804,7 +875,7 @@ function displaySeats(screening, reservations) {
 
     for (let c = 1; c <= screening.cols; c++) {
       const isReserved = reservedSeats.some(
-        (seat) => seat.seatRow === rowChar && seat.seatCol === c
+        (seat) => seat.seatRow === rowChar && seat.seatCol === c,
       );
       process.stdout.write((isReserved ? "X" : "O") + "  ");
     }
@@ -833,7 +904,9 @@ async function selectMovieStep(state) {
     }
 
     const movie = state.movies[idx - 1];
-    const movieScreenings = state.screenings.filter((s) => s.movieId === movie.id);
+    const movieScreenings = state.screenings.filter(
+      (s) => s.movieId === movie.id,
+    );
 
     // 해당 영화에 등록된 상영 스케줄이 아예 없는 경우 방어
     if (movieScreenings.length === 0) {
@@ -855,13 +928,13 @@ async function selectDateStep(movieScreenings) {
 
   while (true) {
     const input = await askInput(
-      "상영 날짜를 입력하세요 (예: 20260325, 2026-03-25, -202-6-0-3-2-5): "
+      "상영 날짜를 입력하세요 (예: 20260325, 2026-03-25, -202-6-0-3-2-5): ",
     );
     if (isControl(input)) return input;
 
     if (!validateFlexibleDateSyntax(input)) {
       console.log(
-        "날짜 형식이 올바르지 않습니다. 숫자 8개와 '-'만 사용할 수 있으며, '-'는 아무 위치에나 올 수 있습니다."
+        "날짜 형식이 올바르지 않습니다. 숫자 8개와 '-'만 사용할 수 있으며, '-'는 아무 위치에나 올 수 있습니다.",
       );
       continue;
     }
@@ -870,7 +943,7 @@ async function selectDateStep(movieScreenings) {
 
     if (!validateDateSemantic(normalizedDate)) {
       console.log(
-        "존재하지 않는 날짜입니다. YYYY는 2000년 이상이어야 하며, MM/DD는 실제 달력에 존재해야 합니다."
+        "존재하지 않는 날짜입니다. YYYY는 2000년 이상이어야 하며, MM/DD는 실제 달력에 존재해야 합니다.",
       );
       continue;
     }
@@ -911,7 +984,7 @@ function hasTimeConflict(phone, selectedScreening, reservations, screenings) {
     if (!samePhone(r.phone, phone)) return false;
     // 같은 상영이면 같은 전화번호로 여러 좌석 예약 허용 (일행 예약)
     if (r.screeningId === selectedScreening.id) return false;
-    
+
     const reservedScreening = getScreeningById(r.screeningId, screenings);
     if (!reservedScreening) return false;
 
@@ -936,8 +1009,17 @@ async function inputPhoneStep(state, selectedScreening) {
     }
 
     // 예매하려는 시간대와 기존 예매 시간대 충돌 확인
-    if (hasTimeConflict(input, selectedScreening, state.reservations, state.screenings)) {
-      console.log("해당 전화번호로 같은 날짜/겹치는 시간대의 예매가 이미 있습니다.");
+    if (
+      hasTimeConflict(
+        input,
+        selectedScreening,
+        state.reservations,
+        state.screenings,
+      )
+    ) {
+      console.log(
+        "해당 전화번호로 같은 날짜/겹치는 시간대의 예매가 이미 있습니다.",
+      );
       continue;
     }
 
@@ -951,7 +1033,7 @@ function isSeatReserved(screeningId, seat, reservations) {
     (r) =>
       r.screeningId === screeningId &&
       r.seatRow === seat.row &&
-      r.seatCol === seat.col
+      r.seatCol === seat.col,
   );
 }
 
@@ -963,7 +1045,7 @@ async function selectSeatStep(state, selectedScreening) {
     const maxRowChar = String.fromCharCode(64 + selectedScreening.rows);
 
     const input = await askInput(
-      `좌석을 입력하세요 (예: A1 ~ ${maxRowChar}${selectedScreening.cols}): `
+      `좌석을 입력하세요 (예: A1 ~ ${maxRowChar}${selectedScreening.cols}): `,
     );
     if (isControl(input)) return input;
 
@@ -971,13 +1053,15 @@ async function selectSeatStep(state, selectedScreening) {
 
     if (!seat) {
       console.log("좌석 입력 형식이 올바르지 않습니다. 예: A1, B3, C10");
-      console.log("좌석 행은 대문자만 입력 가능하며, 한 자리 좌석번호는 A01처럼 0을 붙일 수 없습니다.");
+      console.log(
+        "좌석 행은 대문자만 입력 가능하며, 한 자리 좌석번호는 A01처럼 0을 붙일 수 없습니다.",
+      );
       continue;
     }
 
     if (!validateSeatSemantic(selectedScreening, seat)) {
       console.log(
-        `좌석 범위를 벗어났습니다. 선택 가능한 좌석은 A1 ~ ${maxRowChar}${selectedScreening.cols} 입니다.`
+        `좌석 범위를 벗어났습니다. 선택 가능한 좌석은 A1 ~ ${maxRowChar}${selectedScreening.cols} 입니다.`,
       );
       continue;
     }
@@ -992,7 +1076,12 @@ async function selectSeatStep(state, selectedScreening) {
 }
 
 // 6단계: 최종 예매 정보 확인
-async function confirmReservationStep(selectedMovie, selectedScreening, phone, seat) {
+async function confirmReservationStep(
+  selectedMovie,
+  selectedScreening,
+  phone,
+  seat,
+) {
   console.log("\n[예매 확인]");
   console.log(`영화: ${selectedMovie.title}`);
   console.log(`상영관: ${selectedScreening.theater}관`);
@@ -1002,7 +1091,9 @@ async function confirmReservationStep(selectedMovie, selectedScreening, phone, s
   console.log(`전화번호: ${phone}`);
 
   while (true) {
-    const input = await askInput("예매를 확정하시겠습니까? (y/n 또는 yes/no): ");
+    const input = await askInput(
+      "예매를 확정하시겠습니까? (y/n 또는 yes/no): ",
+    );
     if (isControl(input)) return input;
 
     if (input === "y" || input === "yes") return true;
@@ -1027,7 +1118,7 @@ function saveReservation(state, phone, screeningId, seat) {
   state.reservations.push(newReservation);
 
   const lines = state.reservations.map(
-    (r) => `${r.id}|${r.phone}|${r.screeningId}|${r.seatRow}${r.seatCol}`
+    (r) => `${r.id}|${r.phone}|${r.screeningId}|${r.seatRow}${r.seatCol}`,
   );
   writeLines(RESERVATIONS_FILE, lines); // 파일 덮어쓰기
 }
@@ -1057,11 +1148,9 @@ async function reserveMovieFlow(state) {
         selectedMovie = result;
         step = 2; // 다음 단계 진행
       }
-    }
-
-    else if (step === 2) {
+    } else if (step === 2) {
       const movieScreenings = state.screenings.filter(
-        (s) => s.movieId === selectedMovie.id
+        (s) => s.movieId === selectedMovie.id,
       );
 
       const result = await selectDateStep(movieScreenings);
@@ -1076,11 +1165,9 @@ async function reserveMovieFlow(state) {
         selectedDate = result;
         step = 3;
       }
-    }
-
-    else if (step === 3) {
+    } else if (step === 3) {
       const filteredScreenings = state.screenings.filter(
-        (s) => s.movieId === selectedMovie.id && s.date === selectedDate
+        (s) => s.movieId === selectedMovie.id && s.date === selectedDate,
       );
 
       if (filteredScreenings.length === 0) {
@@ -1089,7 +1176,10 @@ async function reserveMovieFlow(state) {
         continue;
       }
 
-      const result = await selectScreeningStep(filteredScreenings, state.movies);
+      const result = await selectScreeningStep(
+        filteredScreenings,
+        state.movies,
+      );
 
       if (isControl(result)) {
         if (result.command === CMD.MAIN) return result;
@@ -1101,9 +1191,7 @@ async function reserveMovieFlow(state) {
         selectedScreening = result;
         step = 4;
       }
-    }
-
-    else if (step === 4) {
+    } else if (step === 4) {
       const result = await inputPhoneStep(state, selectedScreening);
 
       if (isControl(result)) {
@@ -1116,9 +1204,7 @@ async function reserveMovieFlow(state) {
         phone = result;
         step = 5;
       }
-    }
-
-    else if (step === 5) {
+    } else if (step === 5) {
       const result = await selectSeatStep(state, selectedScreening);
 
       if (isControl(result)) {
@@ -1131,14 +1217,12 @@ async function reserveMovieFlow(state) {
         seat = result;
         step = 6;
       }
-    }
-
-    else if (step === 6) {
+    } else if (step === 6) {
       const result = await confirmReservationStep(
         selectedMovie,
         selectedScreening,
         phone,
-        seat
+        seat,
       );
 
       if (isControl(result)) {
@@ -1172,7 +1256,7 @@ async function lookupReservationFlow(state) {
 
     // 동일 폰번호로 예매된 모든 내역 필터링
     const myReservations = state.reservations.filter((r) =>
-      samePhone(r.phone, input)
+      samePhone(r.phone, input),
     );
 
     if (myReservations.length === 0) {
@@ -1190,7 +1274,7 @@ async function lookupReservationFlow(state) {
 
       const movieTitle = getMovieTitle(screening.movieId, state.movies);
       console.log(
-        `${index + 1}. 영화: ${movieTitle} | 상영관: ${screening.theater}관 | 날짜: ${screening.date} | 시간: ${screening.time} | 좌석: ${r.seatRow}${r.seatCol} | 예매코드: ${r.id}`
+        `${index + 1}. 영화: ${movieTitle} | 상영관: ${screening.theater}관 | 날짜: ${screening.date} | 시간: ${screening.time} | 좌석: ${r.seatRow}${r.seatCol} | 예매코드: ${r.id}`,
       );
     });
 
@@ -1240,7 +1324,7 @@ async function main() {
     // 메인에서는 back, main 명령어가 불필요하므로 옵션으로 비활성화
     const choice = await askInput(
       "명령어를 보고싶으시면 help, 또는 메뉴 번호를 입력하세요: ",
-      { allowBack: false, allowMain: false }
+      { allowBack: false, allowMain: false },
     );
 
     // help 등의 명령어는 askInput 안에서 처리되고 control 객체가 올라옴
