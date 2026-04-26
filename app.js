@@ -1127,7 +1127,7 @@ function saveReservation(state, phone, screeningId, seat) {
    메인 흐름 제어 (Flows)
 ========================= */
 
-// 영화 예매 전체 시나리오를 관리하는 State Machine 흐름
+// 영화 예매 전체 시나리오를 관리하는 흐름
 async function reserveMovieFlow(state) {
   let step = 1; // 현재 진행 단계 추적용 변수
 
