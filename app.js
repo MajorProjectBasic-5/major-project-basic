@@ -642,7 +642,7 @@ function parseAndValidateFiles() {
           makeFileError(
             SCREENINGS_FILE,
             j + 1,
-            `같은 상영관에서 시간이 겹칩니다. (${a.theater}관)`,
+            `같은 상영관에서 시간이 겹칩니다. (${a.theater}관, ${b.date}, ${a.time} / ${b.time})`,
           ),
         );
       }
@@ -806,17 +806,14 @@ function parseAndValidateFiles() {
 
 // 새로운 예매 시 고유 예약 ID 자동 생성 로직 (현재 최대값 + 1)
 function generateReservationId(reservations) {
-  const maxNum = reservations.reduce((max, r) => {
-    const match = r.id.match(/^R([0-9]{3})$/);
-    if (!match) return max;
+  const used = new Set(reservations.map((r) => r.id));
 
-    const num = Number(match[1]);
-    if (Number.isNaN(num)) return max;
+  for (let i = 0; i <= 999; i++) {
+    const id = `R${String(i).padStart(3, "0")}`;
+    if (!used.has(id)) return id;
+  }
 
-    return num > max ? num : max;
-  }, 0);
-
-  return `R${String(maxNum + 1).padStart(3, "0")}`;
+  throw new Error("더 이상 예매코드를 생성할 수 없습니다.");
 }
 
 /* =========================
