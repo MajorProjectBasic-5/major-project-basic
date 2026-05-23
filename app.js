@@ -1079,7 +1079,13 @@ async function confirmReservationStep(
 
 // 최종 예매 정보를 메모리 및 파일에 저장
 function saveReservation(state, phone, screeningId, seat) {
-  const newId = generateReservationId(state.reservations);
+  let newId;
+  try {
+    newId = generateReservationId(state.reservations);
+  } catch (error) {
+    console.error(error.message);
+    return false;
+  }
 
   const newReservation = {
     id: newId,
@@ -1095,6 +1101,7 @@ function saveReservation(state, phone, screeningId, seat) {
     (r) => `${r.id}|${r.phone}|${r.screeningId}|${r.seatRow}${r.seatCol}`,
   );
   writeLines(RESERVATIONS_FILE, lines); // 파일 덮어쓰기
+  return true;
 }
 
 /* =========================
@@ -1209,8 +1216,15 @@ async function reserveMovieFlow(state) {
         console.log("예매가 취소되었습니다.");
         step = 5; // 거절 시 다시 좌석 선택으로
       } else {
-        saveReservation(state, phone, selectedScreening.id, seat);
-        console.log("예매가 완료되었습니다.");
+        const isSaved = saveReservation(
+          state,
+          phone,
+          selectedScreening.id,
+          seat,
+        );
+        if (isSaved) {
+          console.log("예매가 완료되었습니다.");
+        }
         return undefined; // 정상 종료 후 메인 메뉴로
       }
     }
