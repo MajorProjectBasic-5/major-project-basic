@@ -31,13 +31,6 @@ const rl = readline.createInterface({
    파일 I/O 유틸리티
 ========================= */
 
-// 파일이 존재하지 않으면 빈 파일로 생성하는 함수. reservations.txt(예매 내역 정보 파일)에만 해당함.
-function ensureFileExists(fileName) {
-  if (!fs.existsSync(fileName)) {
-    fs.writeFileSync(fileName, "", "utf8");
-  }
-}
-
 // 텍스트 파일을 읽어 줄 단위로 분리하고, 공백을 제거한 뒤 빈 줄은 제외하여 반환
 function readRawLines(fileName) {
   const content = fs.readFileSync(fileName, "utf8");
@@ -214,23 +207,11 @@ function validateMaxDuration(time) {
   return duration <= 360; // 6시간 = 360분
 }
 
-// 상영 시간: "HH:MM-HH:MM" 또는 "HH:MM - HH:MM" 정규식 검증 (24시간제)
+// 상영 시간: "HH:MM - HH:MM" 정규식 검증 (24시간제)
 function validateTimeRangeSyntax(time) {
-  return /^([0-1][0-9]|2[0-3]):([0-5][0-9])\s*-\s*([0-1][0-9]|2[0-3]):([0-5][0-9])$/.test(
+  return /^([0-1][0-9]|2[0-3]):([0-5][0-9]) - ([0-1][0-9]|2[0-3]):([0-5][0-9])$/.test(
     time,
   );
-}
-
-// 상영 시간을 "HH:MM - HH:MM" 포맷으로 통일하여 정규화
-function normalizeTimeRange(time) {
-  const match = time.match(
-    /^([0-1][0-9]|2[0-3]):([0-5][0-9])\s*-\s*([0-1][0-9]|2[0-3]):([0-5][0-9])$/,
-  );
-  if (!match) return time;
-
-  const start = `${match[1]}:${match[2]}`;
-  const end = `${match[3]}:${match[4]}`;
-  return `${start} - ${end}`;
 }
 
 // "HH:MM" 문자열을 자정 기준 누적 분(minutes)으로 변환
@@ -243,8 +224,7 @@ function timeToMinutes(hhmm) {
 function parseTimeRange(time) {
   if (!validateTimeRangeSyntax(time)) return null;
 
-  const normalized = normalizeTimeRange(time);
-  const [startStr, endStr] = normalized.split(" - ");
+  const [startStr, endStr] = time.split(" - ");
   const start = timeToMinutes(startStr);
   let end = timeToMinutes(endStr);
 
@@ -480,8 +460,6 @@ function parseAndValidateFiles() {
     function validateStrictDateSyntax(date) {
       return /^[0-9]{4}-[0-9]{2}-[0-9]{2}$/.test(date);
     }
-
-    time = normalizeTimeRange(time);
 
     const rows = Number(rowsRaw);
     const cols = Number(colsRaw);
@@ -1292,7 +1270,8 @@ function checkRequiredFiles() {
     process.exit(1);
   }
 
-  // 예매 내역 파일은 실행 과정에서 생성될 수 있으므로 빈 파일로 초기화
+  // 예매 내역 파일은 실행 과정에서 생성될 수 있으므로 빈 파일로 초기화.
+  // 여기서 예매 내역 파일이 없다면 생성. reservations.txt만 해당함.
   if (!fs.existsSync(RESERVATIONS_FILE)) {
     fs.writeFileSync(RESERVATIONS_FILE, "", "utf8");
   }
