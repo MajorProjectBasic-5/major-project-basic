@@ -20,6 +20,7 @@ const rl = readline.createInterface({
   output: process.stdout,
 });
 
+// 텍스트 파일에서 비어 있지 않은 줄 읽기
 function readRawLines(fileName) {
   const content = fs.readFileSync(fileName, "utf8");
   if (!content.trim()) return [];
@@ -29,10 +30,12 @@ function readRawLines(fileName) {
     .filter(Boolean);
 }
 
+// 줄 목록을 텍스트 파일에 저장
 function writeLines(fileName, lines) {
   fs.writeFileSync(fileName, lines.join("\n"), "utf8");
 }
 
+// 전체 명령어 도움말 출력
 function printHelp() {
   console.log("\n[도움말]");
   console.log("help : 도움말 보기");
@@ -41,26 +44,31 @@ function printHelp() {
   console.log("main : 메인 메뉴로 이동");
 }
 
+// 입력 종료 후 프로그램 종료
 function safeExit() {
   console.log("프로그램을 종료합니다.");
   rl.close();
   process.exit(0);
 }
 
+// 사용자 입력의 모든 공백 제거
 function normalizeInput(input) {
   return input.replace(/\s+/g, "");
 }
 
+// 영화 제목 입력의 앞뒤 공백 제거
 function normalizeMovieTitleInput(input) {
   return input.trim();
 }
 
+// 질문 출력 후 원본 답변 정규화
 function askRaw(question, normalizer = normalizeInput) {
   return new Promise((resolve) =>
     rl.question(question, (answer) => resolve(normalizer(answer))),
   );
 }
 
+// 유효한 명령이나 입력을 받을 때까지 반복 질문
 async function askWithNormalizer(
   question,
   options = {},
@@ -98,42 +106,52 @@ async function askWithNormalizer(
   }
 }
 
+// 일반 입력 수신 및 정규화
 function askInput(question, options = {}) {
   return askWithNormalizer(question, options);
 }
 
+// 영화 제목 입력 수신 및 제목 규칙 정규화
 function askMovieTitle(question, options = {}) {
   return askWithNormalizer(question, options, normalizeMovieTitleInput);
 }
 
+// 화면 이동 제어 명령 여부 확인
 function isControl(value) {
   return value && typeof value === "object" && value.type === "control";
 }
 
+// 영화 코드 형식 검증
 function validateMovieCodeSyntax(code) {
   return /^M[0-9]{3}$/.test(code);
 }
 
+// 상영 코드 형식 검증
 function validateScreeningCodeSyntax(code) {
   return /^S[0-9]{3}$/.test(code);
 }
 
+// 예매 코드 형식 검증
 function validateReservationCodeSyntax(code) {
   return /^R[0-9]{3}$/.test(code);
 }
 
+// 사용 금지 좌석 코드 형식 검증
 function validateDisabledSeatCodeSyntax(code) {
   return /^D[0-9]{3}$/.test(code);
 }
 
+// 상영관 코드 형식 검증
 function validateTheaterCodeSyntax(code) {
   return /^T[1-9]$/.test(code);
 }
 
+// 상영관 코드 문법 검증
 function validateTheaterSyntax(code) {
   return validateTheaterCodeSyntax(code);
 }
 
+// 영화 제목의 데이터 파일 저장 가능 여부 확인
 function validateMovieTitleSyntax(title) {
   return (
     typeof title === "string" &&
@@ -142,27 +160,33 @@ function validateMovieTitleSyntax(title) {
   );
 }
 
+// 상영 시간의 1~360분 정수 여부 확인
 function validateRunningTime(value) {
   return /^[1-9][0-9]*$/.test(String(value)) && Number(value) <= 360;
 }
 
+// 최대 범위 안의 양의 정수 여부 확인
 function validatePositiveIntegerInRange(value, max) {
   return /^[1-9][0-9]*$/.test(String(value)) && Number(value) <= max;
 }
 
+// YYYY-MM-DD 날짜 형식 검증
 function validateDateSyntax(date) {
   return /^[0-9]{4}-[0-9]{2}-[0-9]{2}$/.test(date);
 }
 
+// 하이픈 선택 포함 8자리 날짜 입력 검증
 function validateFlexibleDateSyntax(input) {
   return /^-*(\d-*){8}$/.test(input);
 }
 
+// 유연한 날짜 입력을 YYYY-MM-DD 형식으로 변환
 function normalizeDateInput(input) {
   const digits = input.replace(/-/g, "");
   return `${digits.slice(0, 4)}-${digits.slice(4, 6)}-${digits.slice(6, 8)}`;
 }
 
+// 날짜의 실제 달력 존재 여부 확인
 function validateDateSemantic(date) {
   if (!validateDateSyntax(date)) return false;
   const [year, month, day] = date.split("-").map(Number);
@@ -170,21 +194,25 @@ function validateDateSemantic(date) {
   return day >= 1 && day <= new Date(year, month, 0).getDate();
 }
 
+// 24시간 HH:MM 시작 시간 형식 검증
 function validateStartTimeSyntax(value) {
   return /^([0-1][0-9]|2[0-3]):[0-5][0-9]$/.test(value);
 }
 
+// HH:MM - HH:MM 시간 범위 형식 검증
 function validateTimeRangeSyntax(value) {
   return /^([0-1][0-9]|2[0-3]):[0-5][0-9] - ([0-1][0-9]|2[0-3]):[0-5][0-9]$/.test(
     value,
   );
 }
 
+// HH:MM 시간을 자정 이후 분 단위로 변환
 function timeToMinutes(value) {
   const [hour, minute] = value.split(":").map(Number);
   return hour * 60 + minute;
 }
 
+// 시간 범위를 시작과 종료 분 값으로 파싱
 function parseTimeRange(value) {
   if (!validateTimeRangeSyntax(value)) return null;
   const [startText, endText] = value.split(" - ");
@@ -194,17 +222,20 @@ function parseTimeRange(value) {
   return { start, end };
 }
 
+// 시간 범위의 최대 6시간 이내 여부 확인
 function validateMaxDuration(value) {
   const range = parseTimeRange(value);
   return Boolean(range && range.end - range.start <= 360);
 }
 
+// 날짜와 시간 문자열로 로컬 Date 객체 생성
 function makeLocalDateTime(dateString, timeString) {
   const [year, month, day] = dateString.split("-").map(Number);
   const [hour, minute] = timeString.split(":").map(Number);
   return new Date(year, month - 1, day, hour, minute, 0, 0);
 }
 
+// 상영 정보의 시작과 종료 Date 범위 반환
 function getScreeningDateTimeRange(screening) {
   const [startText, endText] = screening.time.split(" - ");
   const start = makeLocalDateTime(screening.date, startText);
@@ -213,26 +244,32 @@ function getScreeningDateTimeRange(screening) {
   return { start, end };
 }
 
+// 상영 정보의 절대 날짜-시간 범위 반환
 function getAbsoluteRange(screening) {
   return getScreeningDateTimeRange(screening);
 }
 
+// 두 날짜-시간 범위의 겹침 여부 확인
 function isTimeOverlap(rangeA, rangeB) {
   return rangeA.start < rangeB.end && rangeB.start < rangeA.end;
 }
 
+// Date 객체를 HH:MM 형식으로 변환
 function formatTime(date) {
   return `${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}`;
 }
 
+// Date 객체를 YYYY-MM-DD 형식으로 변환
 function formatDate(date) {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
 }
 
+// Date 객체를 YYYY-MM-DD HH:MM 형식으로 변환
 function formatDateTime(date) {
   return `${formatDate(date)} ${formatTime(date)}`;
 }
 
+// 시작 시간과 상영 시간으로 상영 시간 범위 생성
 function formatTimeRangeFromStartAndRunningTime(
   startTime,
   runningTime,
@@ -243,6 +280,7 @@ function formatTimeRangeFromStartAndRunningTime(
   return `${startTime} - ${formatTime(end)}`;
 }
 
+// 사용 금지 좌석의 적용 날짜-시간 범위 반환
 function getDisabledSeatDateRange(disabledSeat) {
   const start = makeLocalDateTime(disabledSeat.startDate, "00:00");
   const end = makeLocalDateTime(disabledSeat.endDate, "00:00");
@@ -250,14 +288,17 @@ function getDisabledSeatDateRange(disabledSeat) {
   return { start, end };
 }
 
+// 상영 시작 또는 경과 여부 확인
 function isScreeningStartedOrPast(screening, state) {
   return getScreeningDateTimeRange(screening).start <= state.currentDateTime;
 }
 
+// 상영 종료 여부 확인
 function isScreeningEnded(screening, state) {
   return getScreeningDateTimeRange(screening).end <= state.currentDateTime;
 }
 
+// 현재 상영 진행 여부 확인
 function isScreeningNowPlaying(screening, state) {
   const range = getScreeningDateTimeRange(screening);
   return (
@@ -265,44 +306,54 @@ function isScreeningNowPlaying(screening, state) {
   );
 }
 
+// 상영 예매 가능 여부 확인
 function isScreeningBookable(screening, state) {
   return getScreeningDateTimeRange(screening).start > state.currentDateTime;
 }
 
+// 좌석 행 문자를 1부터 시작하는 숫자로 변환
 function rowCharToNumber(rowChar) {
   return rowChar.charCodeAt(0) - 64;
 }
 
+// 1부터 시작하는 행 번호를 좌석 행 문자로 변환
 function rowNumberToChar(rowNumber) {
   return String.fromCharCode(64 + rowNumber);
 }
 
+// 상영관 ID에서 표시용 번호 추출
 function getTheaterDisplayNumber(theaterId) {
   return theaterId.slice(1);
 }
 
+// ID로 상영관 조회
 function getTheaterById(theaterId, theaters) {
   return theaters.find((theater) => theater.id === theaterId);
 }
 
+// ID로 영화 조회
 function getMovieById(movieId, movies) {
   return movies.find((movie) => movie.id === movieId);
 }
 
+// 영화 제목 조회 또는 대체 문구 반환
 function getMovieTitle(movieId, movies) {
   const movie = getMovieById(movieId, movies);
   return movie ? movie.title : "알 수 없는 영화";
 }
 
+// ID로 상영 정보 조회
 function getScreeningById(screeningId, screenings) {
   return screenings.find((screening) => screening.id === screeningId);
 }
 
+// 좌석 입력을 행과 열 값으로 파싱
 function parseSeatInput(input) {
   const match = input.match(/^([A-Z])([1-9][0-9]?)$/);
   return match ? { row: match[1], col: Number(match[2]) } : null;
 }
 
+// 좌석의 상영관 범위 내 존재 여부 확인
 function validateSeatSemantic(theater, seat) {
   const row = rowCharToNumber(seat.row);
   return (
@@ -310,6 +361,7 @@ function validateSeatSemantic(theater, seat) {
   );
 }
 
+// 허용 전화번호 형식 검증
 function validatePhoneSyntax(phone) {
   if (!/^[0-9-]+$/.test(phone)) return false;
   const digits = phone.replace(/-/g, "");
@@ -321,14 +373,17 @@ function validatePhoneSyntax(phone) {
   return true;
 }
 
+// 전화번호에서 하이픈 제거
 function normalizePhone(phone) {
   return phone.replace(/-/g, "");
 }
 
+// 두 전화번호 정규화 후 비교
 function samePhone(a, b) {
   return normalizePhone(a) === normalizePhone(b);
 }
 
+// 상영의 특정 좌석 예매 여부 확인
 function isSeatReserved(screeningId, seat, reservations) {
   return reservations.some(
     (reservation) =>
@@ -338,6 +393,7 @@ function isSeatReserved(screeningId, seat, reservations) {
   );
 }
 
+// 상영 시간의 특정 좌석 사용 금지 여부 확인
 function isSeatDisabled(screening, seat, state) {
   const screeningRange = getScreeningDateTimeRange(screening);
   const row = rowCharToNumber(seat.row);
@@ -350,10 +406,12 @@ function isSeatDisabled(screening, seat, state) {
   );
 }
 
+// 데이터 파일 줄 검증 오류 메시지 생성
 function makeFileError(fileName, lineNo, reason) {
   return `[파일 오류] ${fileName} ${lineNo}번째 줄: ${reason}`;
 }
 
+// 영화 파일 레코드 파싱 및 검증
 function parseMoviesRawLines(lines) {
   const ids = new Set();
   return lines.map((line, index) => {
@@ -393,6 +451,7 @@ function parseMoviesRawLines(lines) {
   });
 }
 
+// 상영관 파일 레코드 파싱 및 검증
 function parseTheatersRawLines(lines) {
   const ids = new Set();
   return lines.map((line, index) => {
@@ -439,6 +498,7 @@ function parseTheatersRawLines(lines) {
   });
 }
 
+// 상영 정보 파일 레코드 파싱 및 검증
 function parseScreeningsRawLines(lines, movies, theaters) {
   const ids = new Set();
   const screenings = lines.map((line, index) => {
@@ -531,6 +591,7 @@ function parseScreeningsRawLines(lines, movies, theaters) {
   return screenings;
 }
 
+// 사용 금지 좌석 파일 레코드 파싱 및 검증
 function parseDisabledSeatsRawLines(lines, theaters) {
   const ids = new Set();
   const disabledSeats = lines.map((line, index) => {
@@ -640,6 +701,7 @@ function parseDisabledSeatsRawLines(lines, theaters) {
   return disabledSeats;
 }
 
+// 예매 파일 레코드 파싱 및 검증
 function parseReservationsRawLines(lines, screenings, theaters, disabledSeats) {
   const ids = new Set();
   const reservations = [];
@@ -742,6 +804,7 @@ function parseReservationsRawLines(lines, screenings, theaters, disabledSeats) {
   return reservations;
 }
 
+// 모든 데이터 파일 읽기 및 상태 검증
 function parseAndValidateFiles() {
   const movies = parseMoviesRawLines(readRawLines(MOVIES_FILE));
   const theaters = parseTheatersRawLines(readRawLines(THEATERS_FILE));
@@ -770,6 +833,7 @@ function parseAndValidateFiles() {
   };
 }
 
+// 영화 레코드를 영화 파일에 저장
 function saveMovies(state) {
   writeLines(
     MOVIES_FILE,
@@ -779,6 +843,7 @@ function saveMovies(state) {
   );
 }
 
+// 상영관 레코드를 상영관 파일에 저장
 function saveTheaters(state) {
   writeLines(
     THEATERS_FILE,
@@ -788,6 +853,7 @@ function saveTheaters(state) {
   );
 }
 
+// 상영 정보 레코드를 상영 정보 파일에 저장
 function saveScreenings(state) {
   writeLines(
     SCREENINGS_FILE,
@@ -798,6 +864,7 @@ function saveScreenings(state) {
   );
 }
 
+// 사용 금지 좌석 레코드를 파일에 저장
 function saveDisabledSeats(state) {
   writeLines(
     DISABLED_SEATS_FILE,
@@ -808,6 +875,7 @@ function saveDisabledSeats(state) {
   );
 }
 
+// 예매 레코드를 예매 파일에 저장
 function saveReservations(state) {
   writeLines(
     RESERVATIONS_FILE,
@@ -818,6 +886,7 @@ function saveReservations(state) {
   );
 }
 
+// 사용 가능한 다음 접두어 ID 생성
 function generateNextId(prefix, usedIds, maxNumber) {
   const used = new Set(usedIds);
   for (let index = 0; index <= maxNumber; index += 1) {
@@ -827,6 +896,7 @@ function generateNextId(prefix, usedIds, maxNumber) {
   return null;
 }
 
+// 사용 가능한 다음 상영관 ID 생성
 function generateNextTheaterId(theaters) {
   for (let index = 1; index <= 9; index += 1) {
     const candidate = `T${index}`;
@@ -835,6 +905,7 @@ function generateNextTheaterId(theaters) {
   return null;
 }
 
+// 전화번호 기준 겹치는 상영 예매 여부 확인
 function hasTimeConflict(phone, selectedScreening, reservations, screenings) {
   const selectedRange = getAbsoluteRange(selectedScreening);
   return reservations.some((reservation) => {
@@ -850,6 +921,7 @@ function hasTimeConflict(phone, selectedScreening, reservations, screenings) {
   });
 }
 
+// 선택 가능한 영화 목록 출력
 function printMovies(movies) {
   console.log("\n[영화 목록]");
   movies.forEach((movie, index) =>
@@ -859,6 +931,7 @@ function printMovies(movies) {
   );
 }
 
+// 선택 가능한 상영관 목록 출력
 function printTheaters(theaters) {
   console.log("\n[상영관 목록]");
   theaters.forEach((theater) =>
@@ -866,6 +939,7 @@ function printTheaters(theaters) {
   );
 }
 
+// 영화와 상영관 정보를 포함한 상영 목록 출력
 function printScreenings(screenings, state) {
   console.log("\n[상영 정보]");
   screenings.forEach((screening, index) => {
@@ -876,6 +950,7 @@ function printScreenings(screenings, state) {
   });
 }
 
+// 상영의 좌석 배치도 출력
 function displaySeats(screening, state) {
   const theater = getTheaterById(screening.theaterId, state.theaters);
   console.log("\n[좌석 배치도]");
@@ -898,6 +973,7 @@ function displaySeats(screening, state) {
   console.log("O: 예약 가능, X: 선택 불가");
 }
 
+// 유효한 날짜 입력까지 반복 질문
 async function askValidDate(question) {
   while (true) {
     const input = await askInput(question);
@@ -917,6 +993,7 @@ async function askValidDate(question) {
   }
 }
 
+// 유효한 시작 시간 입력까지 반복 질문
 async function askValidStartTime(question) {
   while (true) {
     const input = await askInput(question);
@@ -929,6 +1006,7 @@ async function askValidStartTime(question) {
   }
 }
 
+// 범위 안의 양의 정수 입력까지 반복 질문
 async function askPositiveIntegerInRange(question, max, errorMessage) {
   while (true) {
     const input = await askInput(question);
@@ -942,6 +1020,7 @@ async function askPositiveIntegerInRange(question, max, errorMessage) {
   }
 }
 
+// 초기 현재 날짜와 시간 입력 수신
 async function inputInitialCurrentDateTime(state) {
   while (true) {
     const date = await askValidDate("현재 날짜를 입력하세요: ");
@@ -953,6 +1032,7 @@ async function inputInitialCurrentDateTime(state) {
   }
 }
 
+// 예매할 영화 선택 단계 진행
 async function selectMovieStep(state) {
   const movies = state.movies.filter((movie) =>
     state.screenings.some(
@@ -977,6 +1057,7 @@ async function selectMovieStep(state) {
   }
 }
 
+// 선택한 영화의 상영 날짜 선택 단계 진행
 async function selectDateStep(movieScreenings, state) {
   const dates = [
     ...new Set(
@@ -1000,6 +1081,7 @@ async function selectDateStep(movieScreenings, state) {
   }
 }
 
+// 가능한 상영 중 시간 선택 단계 진행
 async function selectScreeningStep(screenings, state) {
   const bookable = screenings.filter((screening) =>
     isScreeningBookable(screening, state),
@@ -1021,6 +1103,7 @@ async function selectScreeningStep(screenings, state) {
   }
 }
 
+// 상영 예매용 전화번호 입력 수신
 async function inputPhoneStep(state, screening) {
   while (true) {
     const input = await askInput("전화번호를 입력하세요: ");
@@ -1039,6 +1122,7 @@ async function inputPhoneStep(state, screening) {
   }
 }
 
+// 상영 좌석 선택 단계 진행
 async function selectSeatStep(state, screening) {
   const theater = getTheaterById(screening.theaterId, state.theaters);
   while (true) {
@@ -1068,6 +1152,7 @@ async function selectSeatStep(state, screening) {
   }
 }
 
+// 예매 정보 사용자 확인
 async function confirmReservationStep(movie, screening, phone, seat) {
   console.log("\n[예매 확인]");
   console.log(`영화: ${movie.title}`);
@@ -1087,6 +1172,7 @@ async function confirmReservationStep(movie, screening, phone, seat) {
   }
 }
 
+// 예매 레코드 생성 및 저장
 function saveReservation(state, phone, screeningId, seat) {
   const id = generateNextId(
     "R",
@@ -1112,6 +1198,7 @@ function saveReservation(state, phone, screeningId, seat) {
   return true;
 }
 
+// 영화 예매 전체 흐름 실행
 async function reserveMovieFlow(state) {
   let step = 1;
   let movie = null;
@@ -1193,6 +1280,7 @@ async function reserveMovieFlow(state) {
   }
 }
 
+// 조회된 예매의 취소 흐름 실행
 async function cancelReservationFlow(state, reservations) {
   while (true) {
     const input = await askInput(
@@ -1245,6 +1333,7 @@ async function cancelReservationFlow(state, reservations) {
   }
 }
 
+// 전화번호로 예매 내역 조회
 async function lookupReservationFlow(state) {
   while (true) {
     const phone = await askInput("조회할 전화번호를 입력하세요: ");
@@ -1274,6 +1363,7 @@ async function lookupReservationFlow(state) {
   }
 }
 
+// 시뮬레이션용 현재 날짜와 시간 변경
 async function changeCurrentDateTimeFlow(state) {
   while (true) {
     const date = await askValidDate("새 현재 날짜를 입력하세요: ");
@@ -1303,6 +1393,7 @@ async function changeCurrentDateTimeFlow(state) {
   }
 }
 
+// 존재하는 영화 코드 입력까지 반복 질문
 async function askMovieCode(state, question) {
   while (true) {
     const input = await askInput(question);
@@ -1320,6 +1411,7 @@ async function askMovieCode(state, question) {
   }
 }
 
+// 존재하는 상영관 코드 입력까지 반복 질문
 async function askTheater(state, question) {
   while (true) {
     const input = await askInput(question);
@@ -1337,6 +1429,7 @@ async function askTheater(state, question) {
   }
 }
 
+// 유효한 상영 시간 입력까지 반복 질문
 async function askRunningTime() {
   while (true) {
     const input = await askInput("러닝타임을 입력하세요 (분): ");
@@ -1349,6 +1442,7 @@ async function askRunningTime() {
   }
 }
 
+// 영화 추가 흐름 실행
 async function addMovieFlow(state) {
   const id = generateNextId(
     "M",
@@ -1373,6 +1467,7 @@ async function addMovieFlow(state) {
   console.log("영화 정보가 추가되었습니다.");
 }
 
+// 영화 삭제 흐름 실행
 async function deleteMovieFlow(state) {
   printMovies(state.movies);
   const movie = await askMovieCode(state, "삭제할 영화코드를 입력하세요: ");
@@ -1424,6 +1519,7 @@ async function deleteMovieFlow(state) {
   console.log("영화 정보가 삭제되었습니다.");
 }
 
+// 상영관 시간표 충돌 여부 확인
 function validateScreeningSchedule(candidate, state, excludedId = null) {
   return !state.screenings.some(
     (screening) =>
@@ -1433,6 +1529,7 @@ function validateScreeningSchedule(candidate, state, excludedId = null) {
   );
 }
 
+// 상영 변경 후 예매 유효성 확인
 function validateReservationsForScreening(candidate, state) {
   const theater = getTheaterById(candidate.theaterId, state.theaters);
   const reservations = state.reservations.filter(
@@ -1460,6 +1557,7 @@ function validateReservationsForScreening(candidate, state) {
   );
 }
 
+// 영화 상영 시간 수정 흐름 실행
 async function updateMovieRunningTimeFlow(state) {
   printMovies(state.movies);
   const movie = await askMovieCode(state, "수정할 영화코드를 입력하세요: ");
@@ -1535,6 +1633,7 @@ async function updateMovieRunningTimeFlow(state) {
   console.log("영화 정보가 수정되었습니다.");
 }
 
+// 영화 관리 메뉴 반복 흐름 실행
 async function movieManageMenuFlow(state) {
   while (true) {
     console.log(
@@ -1552,6 +1651,7 @@ async function movieManageMenuFlow(state) {
   }
 }
 
+// 상영 추가 또는 수정을 위한 입력 수집 및 검증
 async function buildScreeningInput(state, id, mode = "add") {
   printMovies(state.movies);
   const movie = await askMovieCode(state, "영화코드를 입력하세요: ");
@@ -1600,6 +1700,7 @@ async function buildScreeningInput(state, id, mode = "add") {
   }
 }
 
+// 상영 정보 추가 흐름 실행
 async function addScreeningFlow(state) {
   const id = generateNextId(
     "S",
@@ -1615,6 +1716,7 @@ async function addScreeningFlow(state) {
   console.log("상영 정보가 추가되었습니다.");
 }
 
+// 존재하는 상영 코드 입력까지 반복 질문
 async function askScreening(state, question) {
   while (true) {
     const input = await askInput(question);
@@ -1632,6 +1734,7 @@ async function askScreening(state, question) {
   }
 }
 
+// 상영 정보 삭제 흐름 실행
 async function deleteScreeningFlow(state) {
   printScreenings(state.screenings, state);
   const screening = await askScreening(state, "삭제할 상영코드를 입력하세요: ");
@@ -1655,6 +1758,7 @@ async function deleteScreeningFlow(state) {
   console.log("상영 정보가 삭제되었습니다.");
 }
 
+// 상영 정보 수정 흐름 실행
 async function updateScreeningFlow(state) {
   printScreenings(state.screenings, state);
   const original = await askScreening(state, "수정할 상영코드를 입력하세요: ");
@@ -1685,6 +1789,7 @@ async function updateScreeningFlow(state) {
   console.log("상영 정보가 수정되었습니다.");
 }
 
+// 상영 정보 관리 메뉴 반복 흐름 실행
 async function screeningManageMenuFlow(state) {
   while (true) {
     console.log(
@@ -1702,6 +1807,7 @@ async function screeningManageMenuFlow(state) {
   }
 }
 
+// 상영관 추가 흐름 실행
 async function addTheaterFlow(state) {
   const id = generateNextTheaterId(state.theaters);
   if (!id) return console.log("더 이상 상영관 정보를 추가할 수 없습니다.");
@@ -1724,6 +1830,7 @@ async function addTheaterFlow(state) {
   console.log("상영관 정보가 추가되었습니다.");
 }
 
+// 상영관 삭제 흐름 실행
 async function deleteTheaterFlow(state) {
   printTheaters(state.theaters);
   const theater = await askTheater(state, "삭제할 상영관코드를 입력하세요: ");
@@ -1767,6 +1874,7 @@ async function deleteTheaterFlow(state) {
   console.log("상영관 정보가 삭제되었습니다.");
 }
 
+// 사용 금지 좌석 등록 흐름 실행
 async function addDisabledSeatFlow(state) {
   const id = generateNextId(
     "D",
@@ -1888,6 +1996,7 @@ async function addDisabledSeatFlow(state) {
   console.log("좌석 사용금지 정보가 추가되었습니다.");
 }
 
+// 상영관 관리 메뉴 반복 흐름 실행
 async function theaterManageMenuFlow(state) {
   while (true) {
     console.log(
@@ -1905,6 +2014,7 @@ async function theaterManageMenuFlow(state) {
   }
 }
 
+// 관리자 메뉴 반복 흐름 실행
 async function adminMenuFlow(state) {
   while (true) {
     console.log(
@@ -1922,6 +2032,7 @@ async function adminMenuFlow(state) {
   }
 }
 
+// 관리자 비밀번호 확인 후 관리자 메뉴 열기
 async function authenticateAdminFlow(state) {
   while (true) {
     const password = await askInput("관리자 비밀번호를 입력하세요: ");
@@ -1931,6 +2042,7 @@ async function authenticateAdminFlow(state) {
   }
 }
 
+// 메인 메뉴와 현재 시뮬레이션 시간 출력
 function printMainMenu(state) {
   console.log("\n==============================");
   console.log("영화 예매 시스템");
@@ -1944,6 +2056,7 @@ function printMainMenu(state) {
   console.log("==============================");
 }
 
+// 시작 전 필수 데이터 파일 존재 여부 확인
 function checkRequiredFiles() {
   for (const [fileName, message] of [
     [MOVIES_FILE, "영화 정보 파일이 존재하지 않습니다."],
@@ -1961,6 +2074,7 @@ function checkRequiredFiles() {
   }
 }
 
+// 예매 시스템 시작 및 메인 메뉴 반복 흐름 실행
 async function main() {
   checkRequiredFiles();
   let state;
