@@ -929,6 +929,19 @@ async function askValidStartTime(question) {
   }
 }
 
+async function askPositiveIntegerInRange(question, max, errorMessage) {
+  while (true) {
+    const input = await askInput(question);
+    if (isControl(input)) return input;
+
+    if (validatePositiveIntegerInRange(input, max)) {
+      return Number(input);
+    }
+
+    console.log(errorMessage);
+  }
+}
+
 async function inputInitialCurrentDateTime(state) {
   while (true) {
     const date = await askValidDate("현재 날짜를 입력하세요: ");
@@ -1064,7 +1077,9 @@ async function confirmReservationStep(movie, screening, phone, seat) {
   console.log(`좌석: ${seat.row}${seat.col}`);
   console.log(`전화번호: ${phone}`);
   while (true) {
-    const input = await askInput("예매를 확정하시겠습니까? (y/n): ");
+    const input = await askInput(
+      "예매를 확정하시겠습니까? (y/n 또는 yes/no): ",
+    );
     if (isControl(input)) return input;
     if (input === "y" || input === "yes") return true;
     if (input === "n" || input === "no") return false;
@@ -1078,10 +1093,13 @@ function saveReservation(state, phone, screeningId, seat) {
     state.reservations.map((reservation) => reservation.id),
     999,
   );
+
+  // 예매 코드를 생성할 수 없다면 오류 메시지 출력 후 프로그램 종료
   if (!id) {
     console.log("더 이상 예매코드를 생성할 수 없습니다.");
-    return false;
+    safeExit();
   }
+
   state.reservations.push({
     id,
     phone,
@@ -1089,6 +1107,7 @@ function saveReservation(state, phone, screeningId, seat) {
     seatRow: seat.row,
     seatCol: seat.col,
   });
+
   saveReservations(state);
   return true;
 }
@@ -1166,8 +1185,8 @@ async function reserveMovieFlow(state) {
         console.log("예매를 진행하지 않았습니다.");
         step = 5;
       } else {
-        if (saveReservation(state, phone, screening.id, seat))
-          console.log("예매가 완료되었습니다.");
+        saveReservation(state, phone, screening.id, seat);
+        console.log("예매가 완료되었습니다.");
         return;
       }
     }
@@ -1179,31 +1198,49 @@ async function cancelReservationFlow(state, reservations) {
     const input = await askInput(
       "취소할 예매코드를 입력하세요 (취소하지 않으려면 back): ",
     );
+
     if (isControl(input)) return input;
+
     if (!validateReservationCodeSyntax(input)) {
       console.log("예매 코드 형식이 올바르지 않습니다.");
       continue;
     }
+
+    const globalReservation = state.reservations.find(
+      (item) => item.id === input,
+    );
+
+    if (!globalReservation) {
+      console.log("해당 예매 코드를 찾을 수 없습니다.");
+      continue;
+    }
+
     const reservation = reservations.find((item) => item.id === input);
+
     if (!reservation) {
       console.log("현재 조회한 예매 내역에 존재하지 않는 예매 코드입니다.");
       continue;
     }
+
     const screening = getScreeningById(
       reservation.screeningId,
       state.screenings,
     );
+
     const remaining =
       getScreeningDateTimeRange(screening).start - state.currentDateTime;
+
     if (remaining <= 10 * 60 * 1000) {
       console.log("상영 시작 10분 전부터는 예매를 취소할 수 없습니다.");
       continue;
     }
+
     state.reservations = state.reservations.filter(
       (item) => item.id !== reservation.id,
     );
+
     saveReservations(state);
-    console.log("예매가 취소되었습니다.");
+    console.log("예매가 정상적으로 취소되었습니다.");
     return;
   }
 }
@@ -1241,15 +1278,27 @@ async function changeCurrentDateTimeFlow(state) {
   while (true) {
     const date = await askValidDate("새 현재 날짜를 입력하세요: ");
     if (isControl(date)) return date;
+
+    const currentDate = formatDate(state.currentDateTime);
+    if (date < currentDate) {
+      console.log("기존 현재 날짜보다 이전 날짜는 입력할 수 없습니다.");
+      continue;
+    }
+
     const time = await askValidStartTime("새 현재 시간을 입력하세요 (HH:MM): ");
     if (isControl(time)) return time;
+
     const next = makeLocalDateTime(date, time);
+
     if (next <= state.currentDateTime) {
       console.log("현재 시간은 기존 현재 시간보다 미래여야 합니다.");
       continue;
     }
+
     state.currentDateTime = next;
-    console.log("현재 시간이 변경되었습니다.");
+    console.log(
+      `현재 시간이 ${formatDateTime(state.currentDateTime)}으로 변경되었습니다.`,
+    );
     return;
   }
 }
@@ -1321,7 +1370,7 @@ async function addMovieFlow(state) {
   if (isControl(runningTime)) return runningTime;
   state.movies.push({ id, title, runningTime });
   saveMovies(state);
-  console.log(`영화 정보가 추가되었습니다. (${id})`);
+  console.log("영화 정보가 추가되었습니다.");
 }
 
 async function deleteMovieFlow(state) {
@@ -1474,7 +1523,7 @@ async function updateMovieRunningTimeFlow(state) {
       !validateReservationsForScreening(screening, temporaryState)
     ) {
       console.log(
-        "변경된 러닝타임이 기존 데이터와 충돌하여 수정할 수 없습니다.",
+        "변경된 러닝타임이 기존 상영 스케줄과 충돌하여 수정할 수 없습니다.",
       );
       return;
     }
@@ -1503,41 +1552,52 @@ async function movieManageMenuFlow(state) {
   }
 }
 
-async function buildScreeningInput(state, id) {
+async function buildScreeningInput(state, id, mode = "add") {
   printMovies(state.movies);
   const movie = await askMovieCode(state, "영화코드를 입력하세요: ");
   if (isControl(movie)) return movie;
+
   printTheaters(state.theaters);
   const theater = await askTheater(state, "상영관코드를 입력하세요: ");
   if (isControl(theater)) return theater;
-  const date = await askValidDate("상영 날짜를 입력하세요: ");
-  if (isControl(date)) return date;
-  const startTime = await askValidStartTime(
-    "상영 시작시간을 입력하세요 (HH:MM): ",
-  );
-  if (isControl(startTime)) return startTime;
-  const screening = {
-    id,
-    movieId: movie.id,
-    theaterId: theater.id,
-    date,
-    time: formatTimeRangeFromStartAndRunningTime(
-      startTime,
-      movie.runningTime,
-      date,
-    ),
-  };
-  if (getScreeningDateTimeRange(screening).start <= state.currentDateTime) {
-    console.log(
-      "현재 시간보다 이전 또는 같은 시각의 상영 정보는 등록할 수 없습니다.",
+
+  while (true) {
+    const date = await askValidDate("상영 날짜를 입력하세요: ");
+    if (isControl(date)) return date;
+
+    const startTime = await askValidStartTime(
+      "상영 시작시간을 입력하세요 (HH:MM): ",
     );
-    return null;
+    if (isControl(startTime)) return startTime;
+
+    const screening = {
+      id,
+      movieId: movie.id,
+      theaterId: theater.id,
+      date,
+      time: formatTimeRangeFromStartAndRunningTime(
+        startTime,
+        movie.runningTime,
+        date,
+      ),
+    };
+
+    if (getScreeningDateTimeRange(screening).start <= state.currentDateTime) {
+      console.log(
+        mode === "update"
+          ? "현재 시간보다 이전의 상영 정보로 수정할 수 없습니다."
+          : "현재 시간보다 이전의 상영 정보는 추가할 수 없습니다.",
+      );
+      continue;
+    }
+
+    if (!validateScreeningSchedule(screening, state, id)) {
+      console.log("해당 상영관에 시간이 겹치는 상영 정보가 존재합니다.");
+      continue;
+    }
+
+    return screening;
   }
-  if (!validateScreeningSchedule(screening, state, id)) {
-    console.log("해당 상영관에 시간이 겹치는 상영 정보가 존재합니다.");
-    return null;
-  }
-  return screening;
 }
 
 async function addScreeningFlow(state) {
@@ -1547,12 +1607,12 @@ async function addScreeningFlow(state) {
     999,
   );
   if (!id) return console.log("더 이상 상영 정보를 추가할 수 없습니다.");
-  const screening = await buildScreeningInput(state, id);
+  const screening = await buildScreeningInput(state, id, "add");
   if (isControl(screening)) return screening;
   if (!screening) return;
   state.screenings.push(screening);
   saveScreenings(state);
-  console.log(`상영 정보가 추가되었습니다. (${id})`);
+  console.log("상영 정보가 추가되었습니다.");
 }
 
 async function askScreening(state, question) {
@@ -1613,7 +1673,7 @@ async function updateScreeningFlow(state) {
     );
     return;
   }
-  const screening = await buildScreeningInput(state, original.id);
+  const screening = await buildScreeningInput(state, original.id, "update");
   if (isControl(screening)) return screening;
   if (!screening) return;
   if (!validateReservationsForScreening(screening, state))
@@ -1661,7 +1721,7 @@ async function addTheaterFlow(state) {
   }
   state.theaters.push({ id, rows: Number(rows), cols: Number(cols) });
   saveTheaters(state);
-  console.log(`상영관 정보가 추가되었습니다. (${id})`);
+  console.log("상영관 정보가 추가되었습니다.");
 }
 
 async function deleteTheaterFlow(state) {
@@ -1671,12 +1731,19 @@ async function deleteTheaterFlow(state) {
   const screenings = state.screenings.filter(
     (screening) => screening.theaterId === theater.id,
   );
-  if (
-    screenings.some((screening) => isScreeningStartedOrPast(screening, state))
-  )
+
+  if (screenings.some((screening) => isScreeningEnded(screening, state))) {
     return console.log(
-      "이미 시작한 상영 정보와 관련된 상영관은 삭제할 수 없습니다.",
+      "이미 종료된 상영 정보와 관련된 상영관은 삭제할 수 없습니다.",
     );
+  }
+
+  if (screenings.some((screening) => isScreeningNowPlaying(screening, state))) {
+    return console.log(
+      "현재 상영 중인 상영 정보와 관련된 상영관은 삭제할 수 없습니다.",
+    );
+  }
+
   if (
     screenings.some((screening) =>
       state.reservations.some(
@@ -1706,66 +1773,119 @@ async function addDisabledSeatFlow(state) {
     state.disabledSeats.map((seat) => seat.id),
     999,
   );
-  if (!id)
+
+  if (!id) {
     return console.log("더 이상 사용금지 좌석 정보를 추가할 수 없습니다.");
+  }
+
   printTheaters(state.theaters);
+
   const theater = await askTheater(state, "상영관코드를 입력하세요: ");
   if (isControl(theater)) return theater;
-  let seat;
+
+  const row = await askPositiveIntegerInRange(
+    "사용금지 좌석 행 번호를 입력하세요: ",
+    theater.rows,
+    "좌석 행 번호 형식 또는 범위가 올바르지 않습니다.",
+  );
+  if (isControl(row)) return row;
+
+  const col = await askPositiveIntegerInRange(
+    "사용금지 좌석 열 번호를 입력하세요: ",
+    theater.cols,
+    "좌석 열 번호 형식 또는 범위가 올바르지 않습니다.",
+  );
+  if (isControl(col)) return col;
+
+  let startDate;
+  let endDate;
+  const currentDate = formatDate(state.currentDateTime);
+
   while (true) {
-    const input = await askInput("사용금지 좌석을 입력하세요 (예: A1): ");
-    if (isControl(input)) return input;
-    seat = parseSeatInput(input);
-    if (seat && validateSeatSemantic(theater, seat)) break;
-    console.log("좌석 입력 형식 또는 범위가 올바르지 않습니다.");
+    startDate = await askValidDate("사용금지 시작 날짜를 입력하세요: ");
+    if (isControl(startDate)) return startDate;
+
+    if (startDate <= currentDate) {
+      console.log("현재 날짜보다 이후의 날짜만 입력할 수 있습니다.");
+      continue;
+    }
+
+    endDate = await askValidDate("사용금지 종료 날짜를 입력하세요: ");
+    if (isControl(endDate)) return endDate;
+
+    if (endDate <= currentDate) {
+      console.log("현재 날짜보다 이후의 날짜만 입력할 수 있습니다.");
+      continue;
+    }
+
+    if (endDate < startDate) {
+      console.log("사용금지 종료날짜는 시작날짜보다 이전일 수 없습니다.");
+      continue;
+    }
+
+    break;
   }
-  const startDate = await askValidDate("사용금지 시작 날짜를 입력하세요: ");
-  if (isControl(startDate)) return startDate;
-  const endDate = await askValidDate("사용금지 종료 날짜를 입력하세요: ");
-  if (isControl(endDate)) return endDate;
-  if (startDate < formatDate(state.currentDateTime))
-    return console.log("현재 날짜보다 과거의 날짜는 입력할 수 없습니다.");
-  if (endDate < startDate)
-    return console.log("사용금지 종료날짜는 시작날짜보다 이전일 수 없습니다.");
+
   const disabledSeat = {
     id,
     theaterId: theater.id,
-    row: rowCharToNumber(seat.row),
-    col: seat.col,
+    row,
+    col,
     startDate,
     endDate,
   };
+
   const disabledRange = getDisabledSeatDateRange(disabledSeat);
-  const overlap = state.disabledSeats.find(
-    (item) =>
-      item.theaterId === disabledSeat.theaterId &&
-      item.row === disabledSeat.row &&
-      item.col === disabledSeat.col &&
-      isTimeOverlap(disabledRange, getDisabledSeatDateRange(item)),
-  );
-  if (overlap)
+
+  const overlappingDisabledSeats = state.disabledSeats
+    .filter(
+      (item) =>
+        item.theaterId === disabledSeat.theaterId &&
+        item.row === disabledSeat.row &&
+        item.col === disabledSeat.col &&
+        isTimeOverlap(disabledRange, getDisabledSeatDateRange(item)),
+    )
+    .sort((a, b) => a.startDate.localeCompare(b.startDate));
+
+  if (overlappingDisabledSeats.length > 0) {
+    const overlap = overlappingDisabledSeats[0];
     return console.log(
       `해당 기간에 이미 사용 금지로 설정된 좌석입니다. (${overlap.startDate} ~ ${overlap.endDate})`,
     );
-  const conflictingReservation = state.reservations.find((reservation) => {
-    const screening = getScreeningById(
-      reservation.screeningId,
-      state.screenings,
+  }
+
+  const conflictingReservations = state.reservations
+    .map((reservation) => ({
+      reservation,
+      screening: getScreeningById(reservation.screeningId, state.screenings),
+    }))
+    .filter(({ reservation, screening }) => {
+      if (!screening) return false;
+
+      return (
+        screening.theaterId === theater.id &&
+        rowCharToNumber(reservation.seatRow) === row &&
+        reservation.seatCol === col &&
+        isTimeOverlap(getAbsoluteRange(screening), disabledRange)
+      );
+    })
+    .sort(
+      (a, b) =>
+        getScreeningDateTimeRange(a.screening).start -
+        getScreeningDateTimeRange(b.screening).start,
     );
-    return (
-      screening.theaterId === theater.id &&
-      reservation.seatRow === seat.row &&
-      reservation.seatCol === seat.col &&
-      isTimeOverlap(getAbsoluteRange(screening), disabledRange)
-    );
-  });
-  if (conflictingReservation)
+
+  if (conflictingReservations.length > 0) {
+    const { screening } = conflictingReservations[0];
     return console.log(
-      "해당 기간에 해당 좌석의 예매 내역이 존재하여 사용 금지 설정을 할 수 없습니다.",
+      `${screening.date}에 해당 좌석의 예매 내역이 존재하여 사용 금지 설정을 할 수 없습니다.`,
     );
+  }
+
   state.disabledSeats.push(disabledSeat);
   saveDisabledSeats(state);
-  console.log(`좌석 사용금지 정보가 추가되었습니다. (${id})`);
+
+  console.log("좌석 사용금지 정보가 추가되었습니다.");
 }
 
 async function theaterManageMenuFlow(state) {
@@ -1817,7 +1937,7 @@ function printMainMenu(state) {
   console.log(`현재 시간: ${formatDateTime(state.currentDateTime)}`);
   console.log("==============================");
   console.log("1. 영화 예매");
-  console.log("2. 예매 내역 조회 / 취소");
+  console.log("2. 예매 내역 조회");
   console.log("3. 현재 시간 변경");
   console.log("4. 관리자 기능");
   console.log("5. 종료");
