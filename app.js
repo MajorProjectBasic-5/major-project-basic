@@ -26,8 +26,7 @@ function readRawLines(fileName) {
   if (!content.trim()) return [];
   return content
     .split(/\r?\n/)
-    .map((line) => line.trim())
-    .filter(Boolean);
+    .filter((line) => line.length > 0);
 }
 
 // 줄 목록을 텍스트 파일에 저장
@@ -155,6 +154,8 @@ function validateTheaterSyntax(code) {
 function validateMovieTitleSyntax(title) {
   return (
     typeof title === "string" &&
+    title.length > 0 &&
+    !/^\s/.test(title) &&
     title.trim().length > 0 &&
     !/[|\r\n]/.test(title)
   );
@@ -413,37 +414,43 @@ function makeFileError(fileName, lineNo, reason) {
 
 // 영화 파일 레코드 파싱 및 검증
 function parseMoviesRawLines(lines) {
+  if (lines.length === 0)
+    throw new Error("영화 정보 파일 내용 누락 오류: movies.txt 파일이 비어 있습니다.");
+
   const ids = new Set();
   return lines.map((line, index) => {
     const fields = line.split("|");
     if (fields.length !== 3)
       throw new Error(
-        makeFileError(MOVIES_FILE, index + 1, "필드 수는 3개여야 합니다."),
+        makeFileError(
+          MOVIES_FILE,
+          index + 1,
+          "데이터 형식이 올바르지 않습니다. (movieId|title|movieTime) 예: M001|영화 제목|러닝타임",
+        ),
       );
-    const [id, rawTitle, runningTimeText] = fields;
-    const title = rawTitle.trim();
+    const [id, title, runningTimeText] = fields;
     if (!validateMovieCodeSyntax(id))
       throw new Error(
         makeFileError(
           MOVIES_FILE,
           index + 1,
-          `영화코드(${id}) 형식이 올바르지 않습니다.`,
+          `movieId(${id}) 형식이 올바르지 않습니다. 예: M001`,
         ),
       );
     if (ids.has(id))
       throw new Error(
-        makeFileError(MOVIES_FILE, index + 1, `중복된 영화코드(${id})입니다.`),
+        makeFileError(MOVIES_FILE, index + 1, `중복된 movieId(${id})가 있습니다.`),
       );
     if (!validateMovieTitleSyntax(title))
       throw new Error(
-        makeFileError(MOVIES_FILE, index + 1, "영화 제목이 올바르지 않습니다."),
+        makeFileError(MOVIES_FILE, index + 1, "영화 제목 형식이 올바르지 않습니다."),
       );
     if (!validateRunningTime(runningTimeText))
       throw new Error(
         makeFileError(
           MOVIES_FILE,
           index + 1,
-          "러닝타임은 1~360의 정수여야 합니다.",
+          "영화 러닝타임 형식이 올바르지 않습니다.",
         ),
       );
     ids.add(id);
@@ -453,12 +460,19 @@ function parseMoviesRawLines(lines) {
 
 // 상영관 파일 레코드 파싱 및 검증
 function parseTheatersRawLines(lines) {
+  if (lines.length === 0)
+    throw new Error("상영관 정보 파일 내용이 비어있습니다");
+
   const ids = new Set();
   return lines.map((line, index) => {
     const fields = line.split("|");
     if (fields.length !== 3)
       throw new Error(
-        makeFileError(THEATERS_FILE, index + 1, "필드 수는 3개여야 합니다."),
+        makeFileError(
+          THEATERS_FILE,
+          index + 1,
+          "데이터 형식이 올바르지 않습니다. (theaterId|rows|cols)",
+        ),
       );
     const [id, rowsText, colsText] = fields;
     if (!validateTheaterCodeSyntax(id))
@@ -466,7 +480,7 @@ function parseTheatersRawLines(lines) {
         makeFileError(
           THEATERS_FILE,
           index + 1,
-          `상영관코드(${id}) 형식이 올바르지 않습니다.`,
+          `theaterId(${id}) 형식이 올바르지 않습니다. 예: T1`,
         ),
       );
     if (ids.has(id))
@@ -474,7 +488,7 @@ function parseTheatersRawLines(lines) {
         makeFileError(
           THEATERS_FILE,
           index + 1,
-          `중복된 상영관코드(${id})입니다.`,
+          `중복된 theaterId(${id})가 있습니다.`,
         ),
       );
     if (!validatePositiveIntegerInRange(rowsText, 26))
@@ -482,7 +496,7 @@ function parseTheatersRawLines(lines) {
         makeFileError(
           THEATERS_FILE,
           index + 1,
-          "행 수는 1~26의 정수여야 합니다.",
+          `좌석 형식(${rowsText}x${colsText})이 올바르지 않습니다. (자연수여야함, 앞자리 0 금지)`,
         ),
       );
     if (!validatePositiveIntegerInRange(colsText, 99))
@@ -490,7 +504,7 @@ function parseTheatersRawLines(lines) {
         makeFileError(
           THEATERS_FILE,
           index + 1,
-          "열 수는 1~99의 정수여야 합니다.",
+          `좌석 정보(${rowsText}x${colsText})가 올바르지 않습니다.`,
         ),
       );
     ids.add(id);
@@ -500,21 +514,27 @@ function parseTheatersRawLines(lines) {
 
 // 상영 정보 파일 레코드 파싱 및 검증
 function parseScreeningsRawLines(lines, movies, theaters) {
+  if (lines.length === 0)
+    throw new Error("상영정보 파일 내용이 비어있습니다");
+
   const ids = new Set();
   const screenings = lines.map((line, index) => {
     const fields = line.split("|");
     if (fields.length !== 5)
       throw new Error(
-        makeFileError(SCREENINGS_FILE, index + 1, "필드 수는 5개여야 합니다."),
+        makeFileError(
+          SCREENINGS_FILE,
+          index + 1,
+          "데이터 형식이 올바르지 않습니다. (screeningId|movieId|theaterId|date|time)",
+        ),
       );
     const [id, movieId, theaterId, date, time] = fields;
-    const movie = getMovieById(movieId, movies);
     if (!validateScreeningCodeSyntax(id))
       throw new Error(
         makeFileError(
           SCREENINGS_FILE,
           index + 1,
-          `상영코드(${id}) 형식이 올바르지 않습니다.`,
+          `screeningId(${id}) 형식이 올바르지 않습니다. 예: S001`,
         ),
       );
     if (ids.has(id))
@@ -522,15 +542,32 @@ function parseScreeningsRawLines(lines, movies, theaters) {
         makeFileError(
           SCREENINGS_FILE,
           index + 1,
-          `중복된 상영코드(${id})입니다.`,
+          `중복된 screeningId(${id})가 있습니다.`,
         ),
       );
+    if (!validateMovieCodeSyntax(movieId))
+      throw new Error(
+        makeFileError(
+          SCREENINGS_FILE,
+          index + 1,
+          `movieId(${movieId}) 형식이 올바르지 않습니다. 예: M001`,
+        ),
+      );
+    const movie = getMovieById(movieId, movies);
     if (!movie)
       throw new Error(
         makeFileError(
           SCREENINGS_FILE,
           index + 1,
-          `존재하지 않는 영화코드(${movieId}) 참조입니다.`,
+          `존재하지 않는 movieId(${movieId}) 참조`,
+        ),
+      );
+    if (!validateTheaterCodeSyntax(theaterId))
+      throw new Error(
+        makeFileError(
+          SCREENINGS_FILE,
+          index + 1,
+          `theaterId(${theaterId}) 형식이 올바르지 않습니다. 예: T1`,
         ),
       );
     if (!getTheaterById(theaterId, theaters))
@@ -538,10 +575,18 @@ function parseScreeningsRawLines(lines, movies, theaters) {
         makeFileError(
           SCREENINGS_FILE,
           index + 1,
-          `존재하지 않는 상영관코드(${theaterId}) 참조입니다.`,
+          `존재하지 않는 theaterId(${theaterId}) 참조`,
         ),
       );
-    if (!validateDateSyntax(date) || !validateDateSemantic(date))
+    if (!validateDateSyntax(date))
+      throw new Error(
+        makeFileError(
+          SCREENINGS_FILE,
+          index + 1,
+          `상영 날짜(${date}) 형식이 올바르지 않습니다. 예: 2026-03-25`,
+        ),
+      );
+    if (!validateDateSemantic(date))
       throw new Error(
         makeFileError(
           SCREENINGS_FILE,
@@ -555,7 +600,7 @@ function parseScreeningsRawLines(lines, movies, theaters) {
         makeFileError(
           SCREENINGS_FILE,
           index + 1,
-          `상영 시간(${time})이 올바르지 않습니다.`,
+          `상영 시간(${time})이 올바르지 않습니다. (형식과 범위를 만족하지 않거나 6시간을 초과합니다.) 예: 14:00 - 16:14`,
         ),
       );
     if (range.end - range.start !== movie.runningTime)
@@ -563,7 +608,7 @@ function parseScreeningsRawLines(lines, movies, theaters) {
         makeFileError(
           SCREENINGS_FILE,
           index + 1,
-          `상영 시간이 영화(${movieId}) 러닝타임과 일치하지 않습니다.`,
+          "상영 시간이 영화 러닝타임과 일치하지 않습니다.",
         ),
       );
     ids.add(id);
@@ -582,7 +627,7 @@ function parseScreeningsRawLines(lines, movies, theaters) {
           makeFileError(
             SCREENINGS_FILE,
             j + 1,
-            `같은 상영관(${screenings[j].theaterId})에서 시간이 겹칩니다.`,
+            `같은 상영관/날짜의 시간이 겹칩니다. (${getTheaterDisplayNumber(screenings[j].theaterId)}관, ${screenings[j].date}, ${screenings[i].time} / ${screenings[j].time})`,
           ),
         );
       }
@@ -593,6 +638,8 @@ function parseScreeningsRawLines(lines, movies, theaters) {
 
 // 사용 금지 좌석 파일 레코드 파싱 및 검증
 function parseDisabledSeatsRawLines(lines, theaters) {
+  if (lines.length === 0) return [];
+
   const ids = new Set();
   const disabledSeats = lines.map((line, index) => {
     const fields = line.split("|");
@@ -601,17 +648,16 @@ function parseDisabledSeatsRawLines(lines, theaters) {
         makeFileError(
           DISABLED_SEATS_FILE,
           index + 1,
-          "필드 수는 6개여야 합니다.",
+          "데이터 형식이 올바르지 않습니다. (disabledId|theaterId|row|col|startDate|endDate)",
         ),
       );
     const [id, theaterId, rowText, colText, startDate, endDate] = fields;
-    const theater = getTheaterById(theaterId, theaters);
     if (!validateDisabledSeatCodeSyntax(id))
       throw new Error(
         makeFileError(
           DISABLED_SEATS_FILE,
           index + 1,
-          `사용금지좌석코드(${id}) 형식이 올바르지 않습니다.`,
+          `disabledId(${id}) 형식이 올바르지 않습니다. 예: D021`,
         ),
       );
     if (ids.has(id))
@@ -619,40 +665,95 @@ function parseDisabledSeatsRawLines(lines, theaters) {
         makeFileError(
           DISABLED_SEATS_FILE,
           index + 1,
-          `중복된 사용금지좌석코드(${id})입니다.`,
+          `중복된 disabledId(${id})가 있습니다.`,
         ),
       );
+    if (!validateTheaterCodeSyntax(theaterId))
+      throw new Error(
+        makeFileError(
+          DISABLED_SEATS_FILE,
+          index + 1,
+          `theaterId(${theaterId}) 형식이 올바르지 않습니다. 예: T1`,
+        ),
+      );
+    const theater = getTheaterById(theaterId, theaters);
     if (!theater)
       throw new Error(
         makeFileError(
           DISABLED_SEATS_FILE,
           index + 1,
-          `존재하지 않는 상영관코드(${theaterId}) 참조입니다.`,
+          `존재하지 않는 theaterId(${theaterId}) 참조`,
         ),
       );
-    if (
-      !validatePositiveIntegerInRange(rowText, theater.rows) ||
-      !validatePositiveIntegerInRange(colText, theater.cols)
-    ) {
+    if (!validatePositiveIntegerInRange(rowText, 26)) {
       throw new Error(
         makeFileError(
           DISABLED_SEATS_FILE,
           index + 1,
-          "좌석 범위를 벗어났습니다.",
+          `좌석 형식(${rowText}x${colText})이 올바르지 않습니다. (자연수여야함, 앞자리 0 금지)`,
         ),
       );
     }
-    if (
-      !validateDateSyntax(startDate) ||
-      !validateDateSemantic(startDate) ||
-      !validateDateSyntax(endDate) ||
-      !validateDateSemantic(endDate)
-    ) {
+    if (!validatePositiveIntegerInRange(colText, 99)) {
       throw new Error(
         makeFileError(
           DISABLED_SEATS_FILE,
           index + 1,
-          "사용금지 날짜가 올바르지 않습니다.",
+          `좌석 정보(${rowText}x${colText})가 올바르지 않습니다.`,
+        ),
+      );
+    }
+    if (Number(rowText) > theater.rows) {
+      throw new Error(
+        makeFileError(
+          DISABLED_SEATS_FILE,
+          index + 1,
+          `좌석 범위(${rowText}x${colText})가 올바르지 않습니다. (행:1~26, 열:1~99)`,
+        ),
+      );
+    }
+    if (Number(colText) > theater.cols) {
+      throw new Error(
+        makeFileError(
+          DISABLED_SEATS_FILE,
+          index + 1,
+          `좌석 범위(${rowText}x${colText})가 올바르지 않습니다. (행:1~26, 열:1~99)`,
+        ),
+      );
+    }
+    if (!validateDateSyntax(startDate)) {
+      throw new Error(
+        makeFileError(
+          DISABLED_SEATS_FILE,
+          index + 1,
+          `시작 날짜(${startDate}) 형식이 올바르지 않습니다. 예: 2026-03-25`,
+        ),
+      );
+    }
+    if (!validateDateSemantic(startDate)) {
+      throw new Error(
+        makeFileError(
+          DISABLED_SEATS_FILE,
+          index + 1,
+          `시작 날짜(${startDate})가 올바르지 않습니다.`,
+        ),
+      );
+    }
+    if (!validateDateSyntax(endDate)) {
+      throw new Error(
+        makeFileError(
+          DISABLED_SEATS_FILE,
+          index + 1,
+          `종료 날짜(${endDate}) 형식이 올바르지 않습니다. 예: 2026-03-25`,
+        ),
+      );
+    }
+    if (!validateDateSemantic(endDate)) {
+      throw new Error(
+        makeFileError(
+          DISABLED_SEATS_FILE,
+          index + 1,
+          `종료 날짜(${endDate})가 올바르지 않습니다.`,
         ),
       );
     }
@@ -664,7 +765,7 @@ function parseDisabledSeatsRawLines(lines, theaters) {
         makeFileError(
           DISABLED_SEATS_FILE,
           index + 1,
-          "종료 날짜는 시작 날짜보다 이전일 수 없습니다.",
+          "사용금지 종료날짜는 시작날짜보다 이전일 수 없습니다.",
         ),
       );
     }
@@ -703,6 +804,8 @@ function parseDisabledSeatsRawLines(lines, theaters) {
 
 // 예매 파일 레코드 파싱 및 검증
 function parseReservationsRawLines(lines, screenings, theaters, disabledSeats) {
+  if (lines.length === 0) return [];
+
   const ids = new Set();
   const reservations = [];
   const stateForDisabledCheck = { disabledSeats };
@@ -713,18 +816,17 @@ function parseReservationsRawLines(lines, screenings, theaters, disabledSeats) {
         makeFileError(
           RESERVATIONS_FILE,
           index + 1,
-          "필드 수는 4개여야 합니다.",
+          "데이터 형식이 올바르지 않습니다. (reservationId|phone|screeningId|seat).",
         ),
       );
     const [id, phone, screeningId, seatText] = fields;
-    const screening = getScreeningById(screeningId, screenings);
     const seat = parseSeatInput(seatText);
     if (!validateReservationCodeSyntax(id))
       throw new Error(
         makeFileError(
           RESERVATIONS_FILE,
           index + 1,
-          `예매코드(${id}) 형식이 올바르지 않습니다.`,
+          `reservationId(${id}) 형식이 올바르지 않습니다. 예: R001`,
         ),
       );
     if (ids.has(id))
@@ -732,7 +834,7 @@ function parseReservationsRawLines(lines, screenings, theaters, disabledSeats) {
         makeFileError(
           RESERVATIONS_FILE,
           index + 1,
-          `중복된 예매코드(${id})입니다.`,
+          `중복된 reservationId(${id})가 있습니다.`,
         ),
       );
     if (!/^[0-9]+$/.test(phone) || !validatePhoneSyntax(phone))
@@ -743,12 +845,21 @@ function parseReservationsRawLines(lines, screenings, theaters, disabledSeats) {
           `전화번호(${phone}) 형식이 올바르지 않습니다.`,
         ),
       );
+    if (!validateScreeningCodeSyntax(screeningId))
+      throw new Error(
+        makeFileError(
+          RESERVATIONS_FILE,
+          index + 1,
+          `screeningId(${screeningId}) 형식이 올바르지 않습니다. 예: S001`,
+        ),
+      );
+    const screening = getScreeningById(screeningId, screenings);
     if (!screening)
       throw new Error(
         makeFileError(
           RESERVATIONS_FILE,
           index + 1,
-          `존재하지 않는 상영코드(${screeningId}) 참조입니다.`,
+          `존재하지 않는 screeningId(${screeningId}) 참조`,
         ),
       );
     if (!seat)
@@ -756,7 +867,7 @@ function parseReservationsRawLines(lines, screenings, theaters, disabledSeats) {
         makeFileError(
           RESERVATIONS_FILE,
           index + 1,
-          `좌석(${seatText}) 형식이 올바르지 않습니다.`,
+          `좌석(${seatText}) 형식이 올바르지 않습니다. 예: A1, B3, C10`,
         ),
       );
     const theater = getTheaterById(screening.theaterId, theaters);
@@ -765,7 +876,7 @@ function parseReservationsRawLines(lines, screenings, theaters, disabledSeats) {
         makeFileError(
           RESERVATIONS_FILE,
           index + 1,
-          `좌석(${seatText})이 상영관 범위를 벗어났습니다.`,
+          `존재하지 않는 좌석(${seatText})입니다. 선택 가능한 범위: A1 ~ ${rowNumberToChar(theater.rows)}${theater.cols}`,
         ),
       );
     if (isSeatReserved(screeningId, seat, reservations))
@@ -773,7 +884,7 @@ function parseReservationsRawLines(lines, screenings, theaters, disabledSeats) {
         makeFileError(
           RESERVATIONS_FILE,
           index + 1,
-          "같은 상영의 좌석이 중복 예매되어 있습니다.",
+          "이미 예매된 좌석이 중복 저장되어 있습니다.",
         ),
       );
     if (isSeatDisabled(screening, seat, stateForDisabledCheck))
@@ -781,7 +892,7 @@ function parseReservationsRawLines(lines, screenings, theaters, disabledSeats) {
         makeFileError(
           RESERVATIONS_FILE,
           index + 1,
-          "사용금지 좌석이 예매되어 있습니다.",
+          "사용금지 좌석과 시간이 겹치는 좌석이 예매되어 있습니다.",
         ),
       );
     if (hasTimeConflict(phone, screening, reservations, screenings))
@@ -789,7 +900,7 @@ function parseReservationsRawLines(lines, screenings, theaters, disabledSeats) {
         makeFileError(
           RESERVATIONS_FILE,
           index + 1,
-          "동일 전화번호로 시간이 겹치는 상영이 예매되어 있습니다.",
+          "동일 전화번호로 시간이 겹치는 상영이 중복 예매되어 있습니다.",
         ),
       );
     ids.add(id);
