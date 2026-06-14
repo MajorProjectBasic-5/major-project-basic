@@ -24,9 +24,7 @@ const rl = readline.createInterface({
 function readRawLines(fileName) {
   const content = fs.readFileSync(fileName, "utf8");
   if (!content.trim()) return [];
-  return content
-    .split(/\r?\n/)
-    .filter((line) => line.length > 0);
+  return content.split(/\r?\n/).filter((line) => line.length > 0);
 }
 
 // 줄 목록을 텍스트 파일에 저장
@@ -415,7 +413,9 @@ function makeFileError(fileName, lineNo, reason) {
 // 영화 파일 레코드 파싱 및 검증
 function parseMoviesRawLines(lines) {
   if (lines.length === 0)
-    throw new Error("영화 정보 파일 내용 누락 오류: movies.txt 파일이 비어 있습니다.");
+    throw new Error(
+      "영화 정보 파일 내용 누락 오류: movies.txt 파일이 비어 있습니다.",
+    );
 
   const ids = new Set();
   return lines.map((line, index) => {
@@ -439,11 +439,19 @@ function parseMoviesRawLines(lines) {
       );
     if (ids.has(id))
       throw new Error(
-        makeFileError(MOVIES_FILE, index + 1, `중복된 movieId(${id})가 있습니다.`),
+        makeFileError(
+          MOVIES_FILE,
+          index + 1,
+          `중복된 movieId(${id})가 있습니다.`,
+        ),
       );
     if (!validateMovieTitleSyntax(title))
       throw new Error(
-        makeFileError(MOVIES_FILE, index + 1, "영화 제목 형식이 올바르지 않습니다."),
+        makeFileError(
+          MOVIES_FILE,
+          index + 1,
+          "영화 제목 형식이 올바르지 않습니다.",
+        ),
       );
     if (!validateRunningTime(runningTimeText))
       throw new Error(
@@ -514,8 +522,7 @@ function parseTheatersRawLines(lines) {
 
 // 상영 정보 파일 레코드 파싱 및 검증
 function parseScreeningsRawLines(lines, movies, theaters) {
-  if (lines.length === 0)
-    throw new Error("상영정보 파일 내용이 비어있습니다");
+  if (lines.length === 0) throw new Error("상영정보 파일 내용이 비어있습니다");
 
   const ids = new Set();
   const screenings = lines.map((line, index) => {
@@ -1117,6 +1124,53 @@ async function askValidStartTime(question) {
   }
 }
 
+// 최초 현재 날짜 입력 전용: help/quit/back/main을 명령어로 처리하지 않음
+async function askInitialDateOnly(question) {
+  while (true) {
+    const input = await askRaw(question, normalizeInput);
+
+    if (!input) {
+      console.log("빈 입력은 허용되지 않습니다. 올바른 날짜를 입력하세요.");
+      continue;
+    }
+
+    if (!validateFlexibleDateSyntax(input)) {
+      console.log(
+        "날짜 형식이 올바르지 않습니다. 숫자 8개와 '-'만 입력하세요.",
+      );
+      continue;
+    }
+
+    const date = normalizeDateInput(input);
+
+    if (!validateDateSemantic(date)) {
+      console.log("존재하지 않는 날짜입니다.");
+      continue;
+    }
+
+    return date;
+  }
+}
+
+// 최초 현재 시간 입력 전용: help/quit/back/main을 명령어로 처리하지 않음
+async function askInitialStartTimeOnly(question) {
+  while (true) {
+    const input = await askRaw(question, normalizeInput);
+
+    if (!input) {
+      console.log("빈 입력은 허용되지 않습니다. 올바른 시간을 입력하세요.");
+      continue;
+    }
+
+    if (!validateStartTimeSyntax(input)) {
+      console.log("시간 형식이 올바르지 않습니다. HH:MM 형식으로 입력하세요.");
+      continue;
+    }
+
+    return input;
+  }
+}
+
 // 범위 안의 양의 정수 입력까지 반복 질문
 async function askPositiveIntegerInRange(question, max, errorMessage) {
   while (true) {
@@ -1133,25 +1187,12 @@ async function askPositiveIntegerInRange(question, max, errorMessage) {
 
 // 초기 현재 날짜와 시간 입력 수신
 async function inputInitialCurrentDateTime(state) {
-  let step = 1;
-  let date = null;
+  const date = await askInitialDateOnly("현재 날짜를 입력하세요: ");
+  const time = await askInitialStartTimeOnly(
+    "현재 시간을 입력하세요 (HH:MM): ",
+  );
 
-  while (true) {
-    if (step === 1) {
-      const result = await askValidDate("현재 날짜를 입력하세요: ");
-      if (isControl(result)) continue;
-      date = result;
-      step = 2;
-    } else {
-      const time = await askValidStartTime("현재 시간을 입력하세요 (HH:MM): ");
-      if (isControl(time)) {
-        if (time.command === CMD.BACK) step = 1;
-        continue;
-      }
-      state.currentDateTime = makeLocalDateTime(date, time);
-      return;
-    }
-  }
+  state.currentDateTime = makeLocalDateTime(date, time);
 }
 
 // 예매할 영화 선택 단계 진행
@@ -1497,7 +1538,8 @@ async function changeCurrentDateTimeFlow(state) {
   while (true) {
     if (step === 1) {
       const result = await askValidDate("새 현재 날짜를 입력하세요: ");
-      if (isControl(result)) return result.command === CMD.MAIN ? result : undefined;
+      if (isControl(result))
+        return result.command === CMD.MAIN ? result : undefined;
 
       const currentDate = formatDate(state.currentDateTime);
       if (result < currentDate) {
@@ -1508,7 +1550,9 @@ async function changeCurrentDateTimeFlow(state) {
       date = result;
       step = 2;
     } else {
-      const time = await askValidStartTime("새 현재 시간을 입력하세요 (HH:MM): ");
+      const time = await askValidStartTime(
+        "새 현재 시간을 입력하세요 (HH:MM): ",
+      );
       if (isControl(time)) {
         if (time.command === CMD.MAIN) return time;
         step = 1;
@@ -1595,7 +1639,8 @@ async function addMovieFlow(state) {
   while (true) {
     if (step === 1) {
       const result = await askMovieTitle("영화 제목을 입력하세요: ");
-      if (isControl(result)) return result.command === CMD.MAIN ? result : undefined;
+      if (isControl(result))
+        return result.command === CMD.MAIN ? result : undefined;
       if (!validateMovieTitleSyntax(result)) {
         console.log("올바른 영화 제목을 입력하세요.");
         continue;
@@ -1715,8 +1760,12 @@ async function updateMovieRunningTimeFlow(state) {
   while (true) {
     if (step === 1) {
       printMovies(state.movies);
-      const result = await askMovieCode(state, "수정할 영화코드를 입력하세요: ");
-      if (isControl(result)) return result.command === CMD.MAIN ? result : undefined;
+      const result = await askMovieCode(
+        state,
+        "수정할 영화코드를 입력하세요: ",
+      );
+      if (isControl(result))
+        return result.command === CMD.MAIN ? result : undefined;
 
       const relatedScreenings = state.screenings.filter(
         (screening) => screening.movieId === result.id,
@@ -1753,7 +1802,9 @@ async function updateMovieRunningTimeFlow(state) {
           ),
         )
       ) {
-        console.log("해당 영화와 관련된 예매 내역이 존재하여 수정할 수 없습니다.");
+        console.log(
+          "해당 영화와 관련된 예매 내역이 존재하여 수정할 수 없습니다.",
+        );
         return;
       }
 
@@ -1830,7 +1881,8 @@ async function buildScreeningInput(state, id, mode = "add") {
     if (step === 1) {
       printMovies(state.movies);
       const result = await askMovieCode(state, "영화코드를 입력하세요: ");
-      if (isControl(result)) return result.command === CMD.MAIN ? result : undefined;
+      if (isControl(result))
+        return result.command === CMD.MAIN ? result : undefined;
       movie = result;
       step = 2;
     } else if (step === 2) {
@@ -1874,10 +1926,13 @@ async function buildScreeningInput(state, id, mode = "add") {
         ),
       };
 
+      const pastOrSameMessage =
+        mode === "update"
+          ? "현재 시간보다 이전 또는 같은 시각의 상영 정보로 수정할 수 없습니다."
+          : "현재 시간보다 이전 또는 같은 시각의 상영 정보는 추가할 수 없습니다.";
+
       if (getScreeningDateTimeRange(screening).start <= state.currentDateTime) {
-        console.log(
-          "현재 시간보다 이전 또는 같은 시각의 상영 정보는 등록할 수 없습니다.",
-        );
+        console.log(pastOrSameMessage);
         step = 3;
         continue;
       }
@@ -2009,7 +2064,8 @@ async function addTheaterFlow(state) {
   while (true) {
     if (step === 1) {
       const result = await askInput("행 수를 입력하세요: ");
-      if (isControl(result)) return result.command === CMD.MAIN ? result : undefined;
+      if (isControl(result))
+        return result.command === CMD.MAIN ? result : undefined;
       if (!validatePositiveIntegerInRange(result, 26)) {
         console.log("행 수 입력 형식이 올바르지 않습니다.");
         continue;
@@ -2079,7 +2135,7 @@ async function deleteTheaterFlow(state) {
   console.log("상영관 정보가 삭제되었습니다.");
 }
 
-// 사용 금지 좌석 등록 흐름 실행
+// 사용 금지 좌석 추가 흐름 실행
 async function addDisabledSeatFlow(state) {
   const id = generateNextId(
     "D",
@@ -2104,7 +2160,8 @@ async function addDisabledSeatFlow(state) {
   while (true) {
     if (step === 1) {
       const result = await askTheater(state, "상영관코드를 입력하세요: ");
-      if (isControl(result)) return result.command === CMD.MAIN ? result : undefined;
+      if (isControl(result))
+        return result.command === CMD.MAIN ? result : undefined;
       theater = result;
       step = 2;
     } else if (step === 2) {
@@ -2267,7 +2324,8 @@ async function adminMenuFlow(state) {
 async function authenticateAdminFlow(state) {
   while (true) {
     const password = await askInput("관리자 비밀번호를 입력하세요: ");
-    if (isControl(password)) return password.command === CMD.MAIN ? password : undefined;
+    if (isControl(password))
+      return password.command === CMD.MAIN ? password : undefined;
     if (password === ADMIN_PASSWORD) {
       const result = await adminMenuFlow(state);
       if (isControl(result) && result.command === CMD.MAIN) return result;
